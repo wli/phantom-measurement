@@ -12,11 +12,11 @@
       phantom.open(phantom.args[0]);
     }
   } else {
-    var results = {};
+    var results = {"url": window.location.href, "original_url": phantom.args[0]};
     for (var name in phantom.modules) {
       results[name] = phantom.modules[name].run();
     }
-    console.log(JSON.stringify(results));
+    console.log("[[measurement]] " + JSON.stringify(results));
     phantom.exit();
   }
 })();
