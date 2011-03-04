@@ -1,5 +1,0 @@
-phantom.modules = phantom.modules || {};
-phantom.modules.images = {
-  run: function() {
-
-};
