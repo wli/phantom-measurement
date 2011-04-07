@@ -5,6 +5,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import os
+import json
 import urllib, urllib2
 
 # options
@@ -50,15 +52,14 @@ TARGET_SERVER = "ldr.myvnc.com:8889" if DEBUG else "cs261.freewli.com"
 QUEUE_URL = "http://%s/cs261/queue_page/list/.json?run=%d&limit=%%d" % (TARGET_SERVER, RUN_NUMBER)
 
 # Build JS file
-out = tempfile.NamedTemporaryFile(suffix='.js')
+js = tempfile.NamedTemporaryFile(suffix='.js')
 for fn in glob.glob('modules/*.js'):
   f = open(fn, 'r')
-  out.write(f.read())
-  out.write('\n')
+  js.write(f.read())
+  js.write('\n')
 
-out.write(open('base.js', 'r').read())
-out.flush()
-print out.name
+js.write(open('base.js', 'r').read())
+js.flush()
 
 while True:
   f = urllib2.urlopen(QUEUE_URL % PAGES_PER_BATCH)
@@ -79,8 +80,10 @@ while True:
     target_url = target_page["url"]
     print "Processing %s" % target_url
 
+    output = tempfile.NamedTemporaryFile()
+
     # Run JS file
-    phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-images=no', out.name, target_url], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    phantom = subprocess.Popen([PHANTOMJS_PATH, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     phantom.wait()
 
     # Get HTTP headers
@@ -96,22 +99,21 @@ while True:
           header_data["php_version"] = v.replace("PHP/", '')
 
     success = False
-    for line in phantom.stdout:
-      if line.startswith("[[measurement]] "):
-        line = line.replace("[[measurement]] ", "")
-        data = json.loads(line)
-        data['run'] = RUN_NUMBER
-        data['page_id'] = target_page['id']
-        data.update(header_data)
-        f = urllib2.urlopen("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                            urllib.urlencode(data))
-        # print f.read()
-        # print urllib.urlencode(data)
-        print data
-        success = True
+    output.seek(0)
+    for line in output:
+      data = json.loads(line)
+      data['run'] = RUN_NUMBER
+      data['page_id'] = target_page['id']
+      data.update(header_data)
+      f = urllib2.urlopen("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
+                          urllib.urlencode(data))
+      # print f.read()
+      # print urllib.urlencode(data)
+      print data
+      success = True
     if not success:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
       exit
 
 # Delete temporary JS file
-out.close()
+js.close()

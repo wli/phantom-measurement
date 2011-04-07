@@ -1,8 +1,8 @@
 (function() {
   if (phantom.state.length === 0) {
     // Setup
-    if (phantom.args.length !== 1) {
-      console.log('No URL specified! Read the source code.');
+    if (phantom.args.length !== 2) {
+      console.log('No URL and output path specified! Read the source code.');
       phantom.exit();
     } else if (!phantom.modules) {
       console.log('Nothing to run.');
@@ -16,7 +16,9 @@
     for (var name in phantom.modules) {
       results[name] = phantom.modules[name].run();
     }
-    console.log("[[measurement]] " + JSON.stringify(results));
+
+    phantom.setOutputPath(phantom.args[1]);
+    phantom.write(JSON.stringify(results));
     phantom.exit();
   }
 })();
