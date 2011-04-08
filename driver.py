@@ -65,6 +65,10 @@ while True:
   f = urllib2.urlopen(QUEUE_URL % PAGES_PER_BATCH)
   data = json.loads(f.read())
 
+  if data["status"] == "kill":
+    print "Received kill command."
+    exit
+
   if len(data["message"]["pages"]) == 0:
     if STOP_ON_EMPTY:
       print "No more pages to run. Stopping execution..."
