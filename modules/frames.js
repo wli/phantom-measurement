@@ -1,11 +1,10 @@
 phantom.modules = phantom.modules || {};
-phantom.modules.images = {
+phantom.modules.frames = {
   run: function() {
     return phantom.util.forAllChildFrames(function(doc) {
       var result = [];
-      _.each(doc.getElementsByTagName('img'), function(imgElem) {
-        if (imgElem && imgElem.src)
-          result.push(imgElem.src);
+      phantom.util.forEachFrame(doc, function(elem) {
+        if (elem.src) result.push(elem.src);
       });
       return result;
     });

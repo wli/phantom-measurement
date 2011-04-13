@@ -12,13 +12,18 @@
       phantom.open(phantom.args[0]);
     }
   } else {
-    var results = {"url": window.location.href, "original_url": phantom.args[0]};
-    for (var name in phantom.modules) {
-      results[name] = phantom.modules[name].run();
-    }
+    try {
+      var results = {"url": window.location.href, "original_url": phantom.args[0]};
+      for (var name in phantom.modules) {
+        results[name] = phantom.modules[name].run();
+      }
 
-    phantom.setOutputPath(phantom.args[1]);
-    phantom.write(JSON.stringify(results));
+      phantom.setOutputPath(phantom.args[1]);
+      phantom.write(JSON.stringify(results));
+    } catch (e) {
+      phantom.setOutputPath(phantom.args[1]);
+      phantom.write("!!! EXCEPTION !!! " + e.toString());
+    }
     phantom.exit();
   }
 })();

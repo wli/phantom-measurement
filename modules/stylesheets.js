@@ -1,11 +1,11 @@
 phantom.modules = phantom.modules || {};
-phantom.modules.images = {
+phantom.modules.stylesheets = {
   run: function() {
     return phantom.util.forAllChildFrames(function(doc) {
       var result = [];
-      _.each(doc.getElementsByTagName('img'), function(imgElem) {
-        if (imgElem && imgElem.src)
-          result.push(imgElem.src);
+      _.each(doc.styleSheets, function(styleElem) {
+        if (styleElem && styleElem.href)
+          result.push(styleElem.href);
       });
       return result;
     });

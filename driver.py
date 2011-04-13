@@ -7,6 +7,7 @@ import tempfile
 import time
 import os
 import json
+import pprint
 import urllib, urllib2
 
 # options
@@ -113,7 +114,7 @@ while True:
                           urllib.urlencode(data))
       # print f.read()
       # print urllib.urlencode(data)
-      print data
+      pprint.pprint(data)
       success = True
     if not success:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
