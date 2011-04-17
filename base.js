@@ -12,18 +12,17 @@
       phantom.open(phantom.args[0]);
     }
   } else {
-    try {
-      var results = {"url": window.location.href, "original_url": phantom.args[0]};
-      for (var name in phantom.modules) {
+    var results = {"url": window.location.href, "original_url": phantom.args[0]};
+    for (var name in phantom.modules) {
+      try {
         results[name] = phantom.modules[name].run();
+      } catch(e) {
+        results[name] = '!!! EXCEPTION !!! ' + e.toString();
       }
-
-      phantom.setOutputPath(phantom.args[1]);
-      phantom.write(JSON.stringify(results));
-    } catch (e) {
-      phantom.setOutputPath(phantom.args[1]);
-      phantom.write("!!! EXCEPTION !!! " + e.toString());
     }
+
+    phantom.setOutputPath(phantom.args[1]);
+    phantom.write(JSON.stringify(results));
     phantom.exit();
   }
 })();
