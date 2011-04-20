@@ -21,7 +21,7 @@ phantom.util.forAllChildFrames = function(fn) {
     var doc = queue.shift();
     Array.prototype.push.apply(result, fn(doc));
 
-    console.log(result);
+    // console.log(result);
 
     phantom.util.forEachFrame(doc, function(elem) {
       if (elem.contentWindow && elem.contentWindow.document) 
