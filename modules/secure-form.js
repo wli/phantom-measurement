@@ -10,7 +10,7 @@ phantom.modules.secureForm = {
       return result;
     });
 
-    var actions = {'formless': 0, 'unknownAction': 0, 'javascript': 0, 'http': 0, 'https': 0}
+    var actions = {'formless': 0, 'unknownAction': 0, 'javascript': 0, 'http': 0, 'https': 0};
     _.each(passwordFields, function(pwElem) {
       if (!pwElem.form) {
         actions.formless += 1; 
@@ -30,7 +30,8 @@ phantom.modules.secureForm = {
         actions.javascript += 1;
       else
         actions.unknownAction += 1;
-    }
+    });
 
     return actions;
+  }
 };
