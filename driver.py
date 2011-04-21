@@ -17,6 +17,7 @@ PHANTOMJS_PATH = 'phantomjs'
 VERBOSE = False
 PAGES_PER_BATCH = 1
 STOP_ON_EMPTY = False
+TIMEOUT = 15
 
 def usage():
   print "python driver.py -r <run> --debug --phantomjs-path=<path>"
@@ -92,12 +93,21 @@ while True:
 
     # Run JS file
     phantom = subprocess.Popen([PHANTOMJS_PATH, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
-    phantom.wait()
+    now = time.time()
+    while True: # If not terminated:
+      phantom.poll()
+      if phantom.returncode is not None: break
+
+      if (time.time() - now) > TIMEOUT:
+        phantom.terminate()
+        print "Killed PhantomJS for taking too much time."
+        break
+      time.sleep(0.5)
     
     # Get HTTP headers
     header_data = {}
     try:
-      h = opener.open(target_url)
+      h = opener.open(target_url, timeout=TIMEOUT)
 
       for k, v in h.info().items():
         if k == "server":
@@ -110,7 +120,7 @@ while True:
     except:
       opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
                   urllib.urlencode({'url': target_url, 'run': RUN_NUMBER}),
-                  timeout=15)
+                  timeout=TIMEOUT)
       pass
 
     success = False
@@ -127,7 +137,7 @@ while True:
       try:
         f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
                         urllib.urlencode(data),
-                        timeout=15)
+                        timeout=TIMEOUT)
         pprint.pprint(data)
       except urllib2.URLError as e:
         #x = open('/var/www/error.html', 'w')
