@@ -1,4 +1,5 @@
 (function() {
+  phantom.userAgent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24';
   if (phantom.state.length === 0) {
     // Setup
     if (phantom.args.length !== 2) {
