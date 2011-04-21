@@ -97,7 +97,7 @@ while True:
     # Get HTTP headers
     header_data = {}
     try:
-      h = opener.open(target_url)
+      h = opener.open(target_url, timeout=15)
 
       for k, v in h.info().items():
         if k == "server":
