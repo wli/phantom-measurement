@@ -62,6 +62,9 @@ for fn in glob.glob('modules/*.js'):
 js.write(open('base.js', 'r').read())
 js.flush()
 
+opener = urllib2.build_opener()
+opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24')]
+
 while True:
   f = urllib2.urlopen(QUEUE_URL % PAGES_PER_BATCH)
   data = json.loads(f.read())
@@ -90,18 +93,23 @@ while True:
     # Run JS file
     phantom = subprocess.Popen([PHANTOMJS_PATH, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     phantom.wait()
-
+    
     # Get HTTP headers
     header_data = {}
-    h = urllib2.urlopen(target_url)
+    try:
+      h = opener.open(target_url)
 
-    for k, v in h.info().items():
-      if k == "server":
-        header_data["server_version"] = v
-      if k == "x-powered-by":
-        header_data["powered_by"] = v
-        if v.startswith("PHP/"):
-          header_data["php_version"] = v.replace("PHP/", '')
+      for k, v in h.info().items():
+        if k == "server":
+          header_data["server_version"] = v
+        if k == "x-powered-by":
+          header_data["powered_by"] = v
+          if v.startswith("PHP/"):
+            header_data["php_version"] = v.replace("PHP/", '')
+    except:
+      opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
+                  urllib.urlencode({'url': target_url, 'run': RUN_NUMBER}))
+      pass
 
     success = False
     output.seek(0)
@@ -109,12 +117,30 @@ while True:
       data = json.loads(line)
       data['run'] = RUN_NUMBER
       data['page_id'] = target_page['id']
+      data['depth'] = target_page['depth']
+
+      if target_page['depth'] > 0:
+        # area is a number between 0 and 1 based on prominence on the page
+        for link_url, area in data['links'].items():
+          queue_page_data = {
+            'url': link_url,
+            'depth': target_page['depth'] - 1,
+            'run': RUN_NUMBER,
+            'referrer': target_url,
+            }
+          try:
+            opener.open("http://%s/cs261/queue_page/add/" % TARGET_SERVER,
+                        urllib.urlencode(queue_page_data))
+          except:
+            pass
+
       data.update(header_data)
-      f = urllib2.urlopen("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                          urllib.urlencode(data))
-      # print f.read()
-      # print urllib.urlencode(data)
-      pprint.pprint(data)
+      try:
+        f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
+                        urllib.urlencode(data))
+        pprint.pprint(data)
+      except:
+        pass
       success = True
     if not success:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
