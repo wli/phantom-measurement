@@ -94,12 +94,14 @@ while True:
     # Run JS file
     phantom = subprocess.Popen([PHANTOMJS_PATH, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     now = time.time()
+    phantom_timed_out = False
     while True: # If not terminated:
       phantom.poll()
       if phantom.returncode is not None: break
 
       if (time.time() - now) > TIMEOUT:
         phantom.terminate()
+        phantom_timed_out = True
         print "Killed PhantomJS for taking too much time."
         break
       time.sleep(0.5)
@@ -123,32 +125,36 @@ while True:
                   timeout=TIMEOUT)
       pass
 
-    success = False
+    failed = False
     output.seek(0)
-    for line in output:
-      data = json.loads(line)
-      data['run'] = RUN_NUMBER
-      data['page_id'] = target_page['id']
-      data['depth'] = target_page['depth']
 
-      data.update(header_data)
-      for key in data.iterkeys():
-        data[key] = json.dumps(data[key])
-      try:
-        f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                        urllib.urlencode(data),
-                        timeout=TIMEOUT)
-        pprint.pprint(data)
-      except urllib2.URLError as e:
-        #x = open('/var/www/error.html', 'w')
-        #x.write(e.read())
-        #x.close()
-        #print e.read()
-        pass
-      except:
-        pass
-      success = True
-    if not success:
+    try:
+      data = json.loads(output.read())
+    except ValueError:
+      data = {}
+      if not phantom_timed_out: failed = True
+
+    data['run'] = RUN_NUMBER
+    data['page_id'] = target_page['id']
+    data['depth'] = target_page['depth']
+
+    data.update(header_data)
+    for key in data.iterkeys():
+      data[key] = json.dumps(data[key])
+    try:
+      f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
+                      urllib.urlencode(data),
+                      timeout=TIMEOUT)
+      pprint.pprint(data)
+    #except urllib2.URLError as e:
+    #  #x = open('/var/www/error.html', 'w')
+    #  #x.write(e.read())
+    #  #x.close()
+    #  #print e.read()
+    except:
+      failed = True
+
+    if failed:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
       exit
 
