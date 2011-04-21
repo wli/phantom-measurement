@@ -109,7 +109,8 @@ while True:
       header_data["headers"] = h.info().items()
     except:
       opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                  urllib.urlencode({'url': target_url, 'run': RUN_NUMBER}))
+                  urllib.urlencode({'url': target_url, 'run': RUN_NUMBER}),
+                  timeout=15)
       pass
 
     success = False
@@ -125,7 +126,8 @@ while True:
         data[key] = json.dumps(data[key])
       try:
         f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                        urllib.urlencode(data))
+                        urllib.urlencode(data),
+                        timeout=15)
         pprint.pprint(data)
       except urllib2.URLError as e:
         #x = open('/var/www/error.html', 'w')
