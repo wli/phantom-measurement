@@ -63,7 +63,7 @@ js.write(open('base.js', 'r').read())
 js.flush()
 
 opener = urllib2.build_opener()
-opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24')]
+opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24'), ('Accept', 'application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5'), ('Accept-Language', 'en-US,en;q=0.8'), ('Accept-Charset', 'ISO-8859-1,utf-8;q=0.7,*;q=0.3')]
 
 while True:
   f = urllib2.urlopen(QUEUE_URL % PAGES_PER_BATCH)
@@ -119,26 +119,19 @@ while True:
       data['page_id'] = target_page['id']
       data['depth'] = target_page['depth']
 
-      if target_page['depth'] > 0:
-        # area is a number between 0 and 1 based on prominence on the page
-        for link_url, area in data['links'].items():
-          queue_page_data = {
-            'url': link_url,
-            'depth': target_page['depth'] - 1,
-            'run': RUN_NUMBER,
-            'referrer': target_url,
-            }
-          try:
-            opener.open("http://%s/cs261/queue_page/add/" % TARGET_SERVER,
-                        urllib.urlencode(queue_page_data))
-          except:
-            pass
-
       data.update(header_data)
+      for key in data.iterkeys():
+        data[key] = json.dumps(data[key])
       try:
         f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
                         urllib.urlencode(data))
         pprint.pprint(data)
+      except urllib2.URLError as e:
+        #x = open('/var/www/error.html', 'w')
+        #x.write(e.read())
+        #x.close()
+        #print e.read()
+        pass
       except:
         pass
       success = True
