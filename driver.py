@@ -106,6 +106,7 @@ while True:
           header_data["powered_by"] = v
           if v.startswith("PHP/"):
             header_data["php_version"] = v.replace("PHP/", '')
+      header_data["headers"] = h.info().items()
     except:
       opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
                   urllib.urlencode({'url': target_url, 'run': RUN_NUMBER}))
