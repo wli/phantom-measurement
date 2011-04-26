@@ -110,7 +110,7 @@ while True:
         print "Killed PhantomJS for taking too much time."
         try:
           opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                      urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id']}),
+                      urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id'], 'reason': 'PhantomJS timeout'}),
                       timeout=TIMEOUT)
         except:
           print "Could not contact main server."
@@ -131,10 +131,10 @@ while True:
           if v.startswith("PHP/"):
             header_data["php_version"] = v.replace("PHP/", '')
       header_data["headers"] = h.info().items()
-    except:
+    except urllib2.URLError as e:
       try:
         opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                    urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id']}),
+                    urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id'], 'reason': 'header timeout\n' + e.read()}),
                     timeout=TIMEOUT)
       except:
         print "Could not contact main server."
@@ -163,13 +163,14 @@ while True:
         f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
                         urllib.urlencode(data),
                         timeout=TIMEOUT)
-        x = open('/var/www/error.html', 'w')
-        x.write(f.read())
-        x.close()
+        #x = open('/var/www/error.html', 'w')
+        #x.write(f.read())
+        #x.close()
       except:
         print "Could not contact main server."
         pass
-      pprint.pprint(data)
+      if VERBOSE:
+        pprint.pprint(data)
     #except urllib2.URLError as e:
      #x = open('/var/www/error.html', 'w')
      #x.write(e.read())
