@@ -67,7 +67,12 @@ opener = urllib2.build_opener()
 opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24'), ('Accept', 'application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5'), ('Accept-Language', 'en-US,en;q=0.8'), ('Accept-Charset', 'ISO-8859-1,utf-8;q=0.7,*;q=0.3')]
 
 while True:
-  f = urllib2.urlopen(QUEUE_URL % PAGES_PER_BATCH)
+  try:
+    f = opener.open(QUEUE_URL % PAGES_PER_BATCH, timeout=TIMEOUT)
+  except:
+    print "Could not contact main server. Sleeping for 30 seconds..."
+    time.sleep(30)
+    continue
   data = json.loads(f.read())
 
   if data["status"] == "kill":
@@ -103,6 +108,13 @@ while True:
         phantom.terminate()
         phantom_timed_out = True
         print "Killed PhantomJS for taking too much time."
+        try:
+          opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
+                      urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id']}),
+                      timeout=TIMEOUT)
+        except:
+          print "Could not contact main server."
+          pass
         break
       time.sleep(0.5)
     
@@ -120,9 +132,13 @@ while True:
             header_data["php_version"] = v.replace("PHP/", '')
       header_data["headers"] = h.info().items()
     except:
-      opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                  urllib.urlencode({'url': target_url, 'run': RUN_NUMBER}),
-                  timeout=TIMEOUT)
+      try:
+        opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
+                    urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id']}),
+                    timeout=TIMEOUT)
+      except:
+        print "Could not contact main server."
+        pass
       pass
 
     failed = False
@@ -135,6 +151,7 @@ while True:
       if not phantom_timed_out: failed = True
 
     data['run'] = RUN_NUMBER
+    data['url'] = target_page['url']
     data['page_id'] = target_page['id']
     data['depth'] = target_page['depth']
 
@@ -142,15 +159,22 @@ while True:
     for key in data.iterkeys():
       data[key] = json.dumps(data[key])
     try:
-      f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                      urllib.urlencode(data),
-                      timeout=TIMEOUT)
+      try:
+        f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
+                        urllib.urlencode(data),
+                        timeout=TIMEOUT)
+        x = open('/var/www/error.html', 'w')
+        x.write(f.read())
+        x.close()
+      except:
+        print "Could not contact main server."
+        pass
       pprint.pprint(data)
     #except urllib2.URLError as e:
-    #  #x = open('/var/www/error.html', 'w')
-    #  #x.write(e.read())
-    #  #x.close()
-    #  #print e.read()
+     #x = open('/var/www/error.html', 'w')
+     #x.write(e.read())
+     #x.close()
+     #print e.read()
     except:
       failed = True
 
