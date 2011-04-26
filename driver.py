@@ -75,7 +75,7 @@ while True:
     continue
   data = json.loads(f.read())
 
-  if data["status"] == "kill":
+  if data["message"] == "kill":
     print "Received kill command."
     exit
 
