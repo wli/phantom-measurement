@@ -73,13 +73,18 @@ while True:
     print "Could not contact main server. Sleeping for 30 seconds..."
     time.sleep(30)
     continue
-  data = json.loads(f.read())
+  r = f.read()
+  try:
+    data = json.loads(r)
+  except:
+    print r
+    break
 
   if data["message"] == "kill":
     print "Received kill command."
-    exit
+    exit()
 
-  if len(data["message"]["pages"]) == 0:
+  if len(data["pages"]) == 0:
     if STOP_ON_EMPTY:
       print "No more pages to run. Stopping execution..."
       break
@@ -88,9 +93,9 @@ while True:
       time.sleep(30)
       continue
 
-  print "%d page(s) to process..." % len(data["message"]["pages"])
+  print "%d page(s) to process..." % len(data["pages"])
 
-  for target_page in data["message"]["pages"]:
+  for target_page in data["pages"]:
     target_url = target_page["url"]
     print "Processing %s" % target_url
 
@@ -181,7 +186,7 @@ while True:
 
     if failed:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
-      exit
+      exit()
 
 # Delete temporary JS file
 js.close()
