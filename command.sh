@@ -1,1 +1,1 @@
-xvfb-run python driver.py --run 1
+xvfb-run python driver.py -o /home/ubuntu/phantom-measurement/phantomjs --run 1
