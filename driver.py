@@ -1,14 +1,19 @@
 import getopt
 import glob
 import json
+import os
+import pprint
+import signal
 import subprocess
 import sys
 import tempfile
 import time
-import os
-import json
-import pprint
-import urllib, urllib2
+import urllib
+import urllib2
+
+import proxy
+
+#signal.signal(signal.SIGINT, lambda a, b: sys.exit())
 
 # options
 DEBUG = False
@@ -66,6 +71,10 @@ js.flush()
 opener = urllib2.build_opener()
 opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24'), ('Accept', 'application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5'), ('Accept-Language', 'en-US,en;q=0.8'), ('Accept-Charset', 'ISO-8859-1,utf-8;q=0.7,*;q=0.3')]
 
+# Start the proxy
+httpd = proxy.start_proxy()
+httpd_addr = '%s:%d' % httpd.server_address
+
 while True:
   try:
     f = opener.open(QUEUE_URL % PAGES_PER_BATCH, timeout=TIMEOUT)
@@ -101,8 +110,11 @@ while True:
 
     output = tempfile.NamedTemporaryFile()
 
+    # Clear the proxy log
+    httpd.logs = []
+
     # Run JS file
-    phantom = subprocess.Popen([PHANTOMJS_PATH, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
+    phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=yes', '--proxy=' + httpd_addr, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     now = time.time()
     phantom_timed_out = False
     while True: # If not terminated:
@@ -123,7 +135,11 @@ while True:
         break
       time.sleep(0.5)
     
+    # Get proxy log
+    connection_log = httpd.logs
+
     # Get HTTP headers
+    # XXX remove
     header_data = {}
     try:
       h = opener.open(target_url, timeout=TIMEOUT)
@@ -160,7 +176,9 @@ while True:
     data['page_id'] = target_page['id']
     data['depth'] = target_page['depth']
 
-    data.update(header_data)
+    data.update(header_data) # XXX remove
+
+    data['connections'] = connection_log
     for key in data.iterkeys():
       data[key] = json.dumps(data[key])
     try:
