@@ -1,3 +1,4 @@
+import boto
 import getopt
 import glob
 import json
@@ -57,6 +58,15 @@ for o, a in opts:
 # dependant constants
 TARGET_SERVER = "ldr.myvnc.com:8889" if DEBUG else "cs261.freewli.com"    
 QUEUE_URL = "http://%s/cs261/queue_page/list/.json?run=%d&limit=%%d" % (TARGET_SERVER, RUN_NUMBER)
+
+# open up a connection to SimpleDB
+sdb = boto.connect_sdb('1KP2TM5CMYJAWJ8R5V02', 'f0CVp8g8Vbc49sHr7LVIIB1El2Y990XUro7QgVsd')
+try:
+  sdb_domain = sdb.get_domain('measurement', validate=True)
+except boto.exception.SDBResponseError:
+  print "Error: SimpleDB domain 'measurement' does not exist. Creating..."
+  sdb_domain = sdb.create_domain('measurement')
+  exit()
 
 # Build JS file
 js = tempfile.NamedTemporaryFile(suffix='.js')
@@ -171,36 +181,37 @@ while True:
       data = {}
       if not phantom_timed_out: failed = True
 
-    data['run'] = RUN_NUMBER
-    data['url'] = target_page['url']
-    data['page_id'] = target_page['id']
-    data['depth'] = target_page['depth']
+    item = sdb_domain.new_item(target_page['url'])
 
-    data.update(header_data) # XXX remove
+    item['run'] = RUN_NUMBER
+    item['original_url'] = target_page['url'] # original url
+    item['url'] = data['url'] if 'url' in data else target_page['url'] # final url
+    item['page_id'] = target_page['id']
+    item['depth'] = target_page['depth']
 
-    data['connections'] = connection_log
-    for key in data.iterkeys():
-      data[key] = json.dumps(data[key])
+    for k,v in header_data.items():
+      item[k] = v
+
     try:
-      try:
-        f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                        urllib.urlencode(data),
-                        timeout=TIMEOUT)
-        #x = open('/var/www/error.html', 'w')
-        #x.write(f.read())
-        #x.close()
-      except:
-        print "Could not contact main server."
-        pass
+      item.save()
+
+      command_data = {
+        'run': RUN_NUMBER,
+        'url': target_page['url'],
+        'page_id': target_page['id'],
+        'depth': target_page['depth'],
+        'links': data['links'],
+        }
+      for k,v in command_data.items():
+        command_data[k] = json.dumps(v)
+
+      f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
+                      urllib.urlencode(command_data),
+                      timeout=TIMEOUT)
       if VERBOSE:
         pprint.pprint(data)
-    #except urllib2.URLError as e:
-     #x = open('/var/www/error.html', 'w')
-     #x.write(e.read())
-     #x.close()
-     #print e.read()
     except:
-      failed = True
+      raise
 
     if failed:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
