@@ -1,1 +1,1 @@
-xvfb-run python driver.py
+xvfb-run python driver.py --run 1
