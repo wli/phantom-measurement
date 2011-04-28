@@ -101,31 +101,33 @@ httpd = proxy.start_proxy()
 httpd_addr = '%s:%d' % httpd.server_address
 
 while True:
-  try:
-    f = opener.open(QUEUE_URL % PAGES_PER_BATCH, timeout=TIMEOUT)
-  except:
-    print "Could not contact main server. Sleeping for 30 seconds..."
-    time.sleep(30)
-    continue
-  r = f.read()
-  try:
-    data = json.loads(r)
-  except:
-    print r
-    break
+  #try:
+  #  f = opener.open(QUEUE_URL % PAGES_PER_BATCH, timeout=TIMEOUT)
+  #except:
+  #  print "Could not contact main server. Sleeping for 30 seconds..."
+  #  time.sleep(30)
+  #  continue
+  #r = f.read()
+  #try:
+  #  data = json.loads(r)
+  #except:
+  #  print r
+  #  break
 
-  if data["message"] == "kill":
-    print "Received kill command."
-    exit()
+  #if data["message"] == "kill":
+  #  print "Received kill command."
+  #  exit()
 
-  if len(data["pages"]) == 0:
-    if STOP_ON_EMPTY:
-      print "No more pages to run. Stopping execution..."
-      break
-    else:
-      print "No more pages to run. Sleeping for 30 seconds..."
-      time.sleep(30)
-      continue
+  #if len(data["pages"]) == 0:
+  #  if STOP_ON_EMPTY:
+  #    print "No more pages to run. Stopping execution..."
+  #    break
+  #  else:
+  #    print "No more pages to run. Sleeping for 30 seconds..."
+  #    time.sleep(30)
+  #    continue
+
+  data = {'pages': [{'url': 'http://www.google.com/language_tools?hl=en', 'id': 1, 'run': 999999, 'depth': 0}]}
 
   print "%d page(s) to process..." % len(data["pages"])
 
@@ -174,6 +176,7 @@ while True:
 
     try:
       data = json.loads(output.read())
+      print data
     except ValueError:
       data = {}
       if not phantom_timed_out: failed = True
@@ -240,7 +243,6 @@ while True:
       for num, group in enumerate(itertools.izip_longest(*([iter(pair_values)] * 250))):
         row = sdb_domain.new_item('%s-%d-%d' % (key, num, target_page['id']))
         row['run'] = page['run']
-        row['url'] = page['url']
         row['page_id'] = page['page_id']
         for v in group:
           if v is None: break
@@ -280,6 +282,8 @@ while True:
     if failed:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
       exit()
+    
+  break
 
 # Delete temporary JS file
 js.close()
