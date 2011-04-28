@@ -34,6 +34,7 @@ __version__ = "0.2.1"
 
 import BaseHTTPServer, select, socket, SocketServer, urlparse
 import cStringIO as StringIO
+import errno
 import json
 import threading
 
