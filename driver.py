@@ -31,6 +31,15 @@ TIMEOUT = 15
 def usage():
   print "python driver.py -r <run> --debug --phantomjs-path=<path>"
 
+def report_failure(**kwargs):
+  try:
+    opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
+                urllib.urlencode(kwargs),
+                timeout=TIMEOUT)
+  except:
+    print "Can't contact main server to report problems."
+
+
 try:
   opts, args = getopt.getopt(sys.argv[1:], "hr:dp:vb:s", ["help", "run=", "debug", "phantomjs-path=", "verbose", "batch=", "stop"])
 except getopt.GetoptError, err:
@@ -138,13 +147,7 @@ while True:
         phantom.terminate()
         phantom_timed_out = True
         print "Killed PhantomJS for taking too much time."
-        try:
-          opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                      urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id'], 'reason': 'PhantomJS timeout'}),
-                      timeout=TIMEOUT)
-        except:
-          print "Could not contact main server."
-          pass
+        report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='PhantomJS timeout')
         break
       time.sleep(0.5)
     
@@ -187,12 +190,7 @@ while True:
         #      header_data["php_version"] = v.replace("PHP/", '')
         #header_data["headers"] = h.info().items()
       except urllib2.URLError as e:
-        try:
-          opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                      urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id'], 'reason': 'header timeout\n' + e.read()}),
-                      timeout=TIMEOUT)
-        except:
-          print "Could not contact main server."
+        report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='header timeout\n' + e.read())
 
         print "Header timeout failed."
         continue # Move onto next page
@@ -221,6 +219,8 @@ while True:
         v = json.dumps(header)
         if len(v) > 1024: errors.write('%s=%s\n' % ('header', v))
         else: header_row.add_value('header', v)
+        if len(v) > 1024: 
+          report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='Value too large: %s=%s' % ('headers', v))
 
       all_items.append(header_row)
 
@@ -250,7 +250,8 @@ while True:
         row['page_id'] = page['page_id']
         for v in pair_values:
           v = json.dumps(v)
-          if len(v) > 1024: errors.write('%s=%s\n' % (key, v))
+          if len(v) > 1024: 
+            report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='Value too large: %s=%s' % (key, v))
           else: row.add_value(key, v)
         all_items.append(row)
 
@@ -259,12 +260,7 @@ while True:
         item.save()
       except boto.exception.SDBResponseError as e:
         print "SimpleDB Failure."
-        try:
-          opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                      urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id'], 'reason': 'SimpleDB Failure: ' + str(e)}),
-                      timeout=TIMEOUT)
-        except:
-          print "Can't contact main server to report problems."
+        report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='SimpleDB Failure: ' + str(e))
 
     try:
       command_data = {
