@@ -3,4 +3,4 @@ phantom.modules.cookies = {
   run: function() {
     return phantom.cookies;
   }
-}
+};
