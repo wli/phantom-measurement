@@ -27,7 +27,7 @@ PHANTOMJS_PATH = 'phantomjs'
 VERBOSE = False
 PAGES_PER_BATCH = 1
 STOP_ON_EMPTY = False
-TIMEOUT = 15
+TIMEOUT = 30
 
 def usage():
   print "python driver.py -r <run> --debug --phantomjs-path=<path>"
@@ -143,7 +143,7 @@ while True:
       request_url += ('&' if '?' in request_url else '?') + '_escaped_fragment_=' + urllib.quote(fragment[1:])
 
     # Run JS file
-    phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=yes', '--proxy=' + httpd_addr, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
+    phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=yes', '--proxy=' + httpd_addr, js.name, request_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     now = time.time()
     phantom_timed_out = False
     while True: # If not terminated:
