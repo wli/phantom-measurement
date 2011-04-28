@@ -34,6 +34,7 @@ def usage():
 
 def report_failure(**kwargs):
   try:
+    if VERBOSE: print kwargs['reason']
     opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
                 urllib.urlencode(kwargs),
                 timeout=TIMEOUT)
@@ -261,14 +262,14 @@ while True:
         'url': target_page['url'],
         'page_id': target_page['id'],
         'depth': target_page['depth'],
-        'links': json.dumps(data['links'] if 'links' in data else {}),
-        }
-      for k,v in command_data.items():
+        'links': data['links'] if 'links' in data else {}
+      }
+      for k,v in command_data.iteritems():
         command_data[k] = json.dumps(v)
-          
-        f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                          urllib.urlencode(command_data),
-                          timeout=TIMEOUT)
+      if VERBOSE: print command_data 
+      f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
+                        urllib.urlencode(command_data),
+                        timeout=TIMEOUT)
     except:
       pass
 
