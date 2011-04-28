@@ -129,15 +129,18 @@ while True:
   print "%d page(s) to process..." % len(data["pages"])
 
   for target_page in data["pages"]:
-    target_url = target_page["url"]
-    print "Processing %s" % target_url
+    print "Processing %s" % target_page['url']
 
     output = tempfile.NamedTemporaryFile()
 
     # Clear the proxy log
     httpd.logs = []
 
-    # TODO: filter hashes from URLs
+    # Filter hashes from URLs
+    request_url, fragment = urlparse.urldefrag(target_page['url'])
+    if fragment and fragment[0] == '!':
+      # Move fragment to request_url
+      request_url += ('&' if '?' in request_url else '?') + '_escaped_fragment_=' + urllib.quote(fragment[1:])
 
     # Run JS file
     phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=yes', '--proxy=' + httpd_addr, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
@@ -151,7 +154,7 @@ while True:
         phantom.terminate()
         phantom_timed_out = True
         print "Killed PhantomJS for taking too much time."
-        report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='PhantomJS timeout')
+        report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='PhantomJS timeout')
         break
       time.sleep(0.5)
     
@@ -176,14 +179,13 @@ while True:
 
     # Extract desired header data
     url = data['url'] if 'url' in data else target_page['url']
-    defragged_url = urlparse.urldefrag(url)[0]
     for connection in connection_log:
-      if connection['request_uri'] == defragged_url:
+      if connection['request_uri'] == request_url:
         headers = connection['response_headers']
         break
     else:
       try:
-        h = opener.open(defragged_url, timeout=TIMEOUT)
+        h = opener.open(request_url, timeout=TIMEOUT)
         headers = h.info().items()
         #for k, v in h.info().items():
         #  if k == "server":
@@ -194,7 +196,7 @@ while True:
         #      header_data["php_version"] = v.replace("PHP/", '')
         #header_data["headers"] = h.info().items()
       except urllib2.URLError as e:
-        report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='header timeout\n' + e.read())
+        report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='header timeout\n' + e.read())
 
         print "Header timeout failed."
         continue # Move onto next page
@@ -242,7 +244,7 @@ while True:
         for v in pair_values:
           v = json.dumps(v)
           if len(v) > 1024: 
-            report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='Value too large: %s=%s' % (key, v))
+            report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='Value too large: %s=%s' % (key, v))
           else: row.add_value(key, v)
         all_items.append(row)
 
@@ -254,7 +256,7 @@ while True:
         item.save()
       except boto.exception.SDBResponseError as e:
         print "SimpleDB Failure."
-        report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='SimpleDB Failure: ' + str(e))
+        report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='SimpleDB Failure: ' + str(e))
 
     try:
       command_data = {
