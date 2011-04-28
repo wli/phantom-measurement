@@ -178,7 +178,11 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
       if exs: break
       if ins:
         for i in ins:
-          data = i.recv(8192)
+          try:
+            data = i.recv(8192)
+          except:
+            data = ''
+
           if data:
             if i is soc:
               self.request.send(data)
