@@ -38,37 +38,67 @@ import json
 import threading
 
 class HTTPLoggedRequest(object):
-  def __init__(self, destination):
-    self.destination = destination
-    self.headers = None
-    self.payload_size = 0
+  def __init__(self, method, destination):
+    self.method = method
+    self.request_uri = destination
+    self.status = None
+    self.response_headers = []
+    self.unparsed_response_header_lines = []
 
-    self.headers_remaining = True
-    self.header_data = StringIO.StringIO()
+    self.response_payload_size = 0
+    self.request_payload_size = 0
 
-  def observe(self, data):
-    if hasattr(self, 'headers_remaining'): 
+    self.response_headers_remaining = True
+    self.response_header_data = ''
+
+  def observe_from_server(self, data):
+    if hasattr(self, 'response_headers_remaining'): 
       # Look for \r\n\r\n, or the end of headers
-      headers, sep, payload = data.partition('\r\n\r\n')
-      self.header_data.write(headers)
+      self.response_header_data += data
+      headers, sep, payload = self.response_header_data.partition('\r\n\r\n')
       if sep != '':
-        self.header_data.write(sep)
-        self.payload_size += len(payload)
-        self.headers = self.header_data.getvalue()
+        self.response_payload_size += len(payload)
+#        self.response_header_data.seek(0)
 
-        del self.headers_remaining
-        del self.header_data
+        lines = iter(headers.split('\r\n'))
+        self.status = lines.next().strip()
+        
+        for line in lines:
+          try:
+            name, value = line.split(':', 1)
+            self.response_headers.append((name, value.strip()))
+          except:
+            self.unparsed_response_header_lines.append(line)
+
+        del self.response_headers_remaining
+        del self.response_header_data
+        if not self.unparsed_response_header_lines: del self.unparsed_response_header_lines
     else:
-      self.payload_size += len(data)
+      self.response_payload_size += len(data)
+  
+  def observe_from_client(self, data):
+    self.request_payload_size += len(data)
+
+  def add_request_headers(self, headers):
+    self.request_headers = headers.items()
 
 class TunnelLoggedRequest(object):
   def __init__(self, destination):
-    self.destination = destination
-    self.received_bytes = 0
+    self.method = 'CONNECT'
+    self.request_uri = destination
 
-  def observe(self, data):
-    self.received_bytes += len(data)
+    self.response_payload_size = 0
+    self.request_payload_size = 0
+
+  def observe_from_client(self, data):
+    self.request_payload_size += len(data)
+
+  def observe_from_server(self, data):
+    self.response_payload_size += len(data)
   
+def supply_http_logger(func, method):
+  return lambda self: func(self, HTTPLoggedRequest(method, self.path))
+
 class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
   __base = BaseHTTPServer.BaseHTTPRequestHandler
   __base_handle = __base.handle
@@ -108,12 +138,14 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
       self.request.close()
       self.server.log(logger)
 
-  def do_GET(self):
+  def _respond(self, logger):
     (scm, netloc, path, params, query, fragment) = urlparse.urlparse(self.path, 'http')
-    logger = HTTPLoggedRequest(self.path)
     if scm != 'http' or fragment or not netloc:
       self.send_error(400, "bad url %s" % self.path)
       return
+
+    logger.add_request_headers(self.headers)
+
     soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
       if self._connect_to(netloc, soc):
@@ -122,6 +154,7 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
           self.command,
           urlparse.urlunparse(('', '', path, params, query, '')),
           self.request_version))
+
         self.headers['Connection'] = 'close'
         del self.headers['Proxy-Connection']
         for key_val in self.headers.items():
@@ -148,18 +181,20 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
           if data:
             if i is soc:
               self.request.send(data)
-              logger.observe(data)
+              logger.observe_from_server(data)
             else:
               soc.send(data)
+              logger.observe_from_client(data)
             count = 0
       #else:
       #  print "\t" "idle", count
       if count == max_idling: break
 
-  do_HEAD = do_GET
-  do_POST = do_GET
-  do_PUT  = do_GET
-  do_DELETE=do_GET
+  do_GET    = supply_http_logger(_respond, 'GET')
+  do_HEAD   = supply_http_logger(_respond, 'HEAD')
+  do_POST   = supply_http_logger(_respond, 'POST')
+  do_PUT    = supply_http_logger(_respond, 'PUT')
+  do_DELETE = supply_http_logger(_respond, 'DELETE')
 
 class ThreadingHTTPServer (SocketServer.ThreadingMixIn,
                BaseHTTPServer.HTTPServer):
@@ -168,6 +203,7 @@ class ThreadingHTTPServer (SocketServer.ThreadingMixIn,
     self.logs = []
 
   def log(self, logger):
+    # print logger.__dict__
     self.logs.append(logger.__dict__)
 
 def start_proxy():

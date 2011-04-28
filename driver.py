@@ -1,6 +1,8 @@
+# coding=utf-8
 import boto
 import getopt
 import glob
+import itertools
 import json
 import os
 import pprint
@@ -11,6 +13,7 @@ import tempfile
 import time
 import urllib
 import urllib2
+import urlparse
 
 import proxy
 
@@ -148,29 +151,12 @@ while True:
     # Get proxy log
     connection_log = httpd.logs
 
-    # Get HTTP headers
-    # XXX remove
-    header_data = {}
-    try:
-      h = opener.open(target_url, timeout=TIMEOUT)
+    # TODO: Get local and SQL storage
+    # src/third_party/WebKit/Source/WebCore/page/SecurityOrigin.cpp
+    # http://codesearch.google.com/codesearch/p#OAMlx_jo-ck/src/third_party/WebKit/Source/WebCore/page/SecurityOrigin.cpp&l=463
 
-      for k, v in h.info().items():
-        if k == "server":
-          header_data["server_version"] = v
-        if k == "x-powered-by":
-          header_data["powered_by"] = v
-          if v.startswith("PHP/"):
-            header_data["php_version"] = v.replace("PHP/", '')
-      header_data["headers"] = h.info().items()
-    except urllib2.URLError as e:
-      try:
-        opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                    urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id'], 'reason': 'header timeout\n' + e.read()}),
-                    timeout=TIMEOUT)
-      except:
-        print "Could not contact main server."
-        pass
-      pass
+    # TODO: Get Flash LSOs
+
 
     failed = False
     output.seek(0)
@@ -181,19 +167,97 @@ while True:
       data = {}
       if not phantom_timed_out: failed = True
 
-    item = sdb_domain.new_item(target_page['url'])
+    # Extract desired header data
+    url = data['url'] if 'url' in data else target_page['url']
+    defragged_url = urlparse.urldefrag(url)[0]
+    for connection in connection_log:
+      if connection['request_uri'] == defragged_url:
+        headers = connection['response_headers']
+        break
+    else:
+      try:
+        h = opener.open(defragged_url, timeout=TIMEOUT)
+        headers = h.info().items()
+        #for k, v in h.info().items():
+        #  if k == "server":
+        #    header_data["server_version"] = v
+        #  if k == "x-powered-by":
+        #    header_data["powered_by"] = v
+        #    if v.startswith("PHP/"):
+        #      header_data["php_version"] = v.replace("PHP/", '')
+        #header_data["headers"] = h.info().items()
+      except urllib2.URLError as e:
+        try:
+          opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
+                      urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id'], 'reason': 'header timeout\n' + e.read()}),
+                      timeout=TIMEOUT)
+        except:
+          print "Could not contact main server."
 
-    item['run'] = RUN_NUMBER
-    item['original_url'] = target_page['url'] # original url
-    item['url'] = data['url'] if 'url' in data else target_page['url'] # final url
-    item['page_id'] = target_page['id']
-    item['depth'] = target_page['depth']
+        print "Header timeout failed."
+        continue # Move onto next page
+    headers = ['%s: %s' % (key.lower(), value) for key, value in headers]
 
-    for k,v in header_data.items():
-      item[k] = v
+    all_items = []
+    
+    # Page row
+    page = sdb_domain.new_item('page-%d' % target_page['id'])
+    page['run'] = RUN_NUMBER
+    page['original_url'] = target_page['url'] # original url
+    page['url'] = data['url'] if 'url' in data else target_page['url'] # final url
+    page['page_id'] = target_page['id']
+    page['depth'] = target_page['depth']
+    all_items.append(page)
+    
+    # Rows for headers
+    header_rows = []
+    for num, header_group in enumerate(itertools.izip_longest(*([iter(headers)] * 250))):
+      header_row = sdb_domain.new_item('header-%d-%d' % (num, target_page['id']))
+      header_row['run'] = page['run']
+      header_row['url'] = page['url']
+      header_row['page_id'] = page['page_id']
+      for header in header_group:
+        if header is None: break
+        v = json.dumps(header)
+        if len(v) > 1024: errors.write('%s=%s\n' % ('header', v))
+        else: header_row.add_value('header', v)
+
+      all_items.append(header_row)
+
+    # Rows for connections
+    # TODO
+
+    # Rows for other PhantomJS data
+    wanted_keys = ('cookies', 'frames', 'images', 'jquery', 'links', 'scripts', 'secureForm', 'stylesheets')
+    for key in wanted_keys:
+      try: value = data[key]
+      except: continue
+      # Is it a list?
+      if isinstance(value, (list, tuple)):
+        pair_values = value
+
+      # Is it a dictionary?
+      elif isinstance(value, dict):
+        pair_values = value.items()
+
+      # Is it something else?
+      else: pair_values = [value]
+
+      for num, group in enumerate(itertools.izip_longest(*([iter(pair_values)] * 250))):
+        row = sdb_domain.new_item('%s-%d-%d' % (key, num, target_page['id']))
+        row['run'] = page['run']
+        row['url'] = page['url']
+        row['page_id'] = page['page_id']
+        for v in pair_values:
+          v = json.dumps(v)
+          if len(v) > 1024: errors.write('%s=%s\n' % (key, v))
+          else: row.add_value(key, v)
+        all_items.append(row)
 
     try:
-      item.save()
+      for item in all_items:
+#        print item
+        item.save()
 
       command_data = {
         'run': RUN_NUMBER,
