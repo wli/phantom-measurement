@@ -210,17 +210,16 @@ while True:
     # Rows for headers
     header_rows = []
     for num, header_group in enumerate(itertools.izip_longest(*([iter(headers)] * 250))):
-      header_row = sdb_domain.new_item('header-%d-%d' % (num, target_page['id']))
+      header_row = sdb_domain.new_item('headers-%d-%d' % (num, target_page['id']))
       header_row['run'] = page['run']
       header_row['url'] = page['url']
       header_row['page_id'] = page['page_id']
       for header in header_group:
         if header is None: break
         v = json.dumps(header)
-        if len(v) > 1024: errors.write('%s=%s\n' % ('header', v))
-        else: header_row.add_value('header', v)
         if len(v) > 1024: 
           report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='Value too large: %s=%s' % ('headers', v))
+        else: header_row.add_value('headers', v)
 
       all_items.append(header_row)
 
