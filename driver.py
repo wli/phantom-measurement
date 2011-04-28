@@ -28,7 +28,7 @@ PHANTOMJS_PATH = 'phantomjs'
 VERBOSE = False
 PAGES_PER_BATCH = 1
 STOP_ON_EMPTY = False
-TIMEOUT = 30
+TIMEOUT = 60
 
 def usage():
   print "python driver.py -r <run> --debug --phantomjs-path=<path>"
