@@ -8,7 +8,10 @@ phantom.modules.links = {
     });
     
     /* Compute area taken by each link */
-    var totalArea = _.reduce(links, function(total, link) { return total + link[1]; }, 0);
+    var totalArea = 0;
+    for (var i = 0, n = links.length; i < n; ++i)
+      totalArea += links[i][1];
+
     var result = {};
     if (totalArea == 0) {
       var numLinks = links.length;
