@@ -272,7 +272,7 @@ while True:
         'url': target_page['url'],
         'page_id': target_page['id'],
         'depth': target_page['depth'],
-        'links': data['links'] if 'links' in data else {},
+        'links': json.dumps(data['links'] if 'links' in data else {}),
         }
       for k,v in command_data.items():
         command_data[k] = json.dumps(v)
