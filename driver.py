@@ -276,9 +276,9 @@ while True:
       for k,v in command_data.iteritems():
         command_data[k] = json.dumps(v)
       if VERBOSE: print command_data 
-      f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                        urllib.urlencode(command_data),
-                        timeout=TIMEOUT)
+      async(lambda: opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
+                                 urllib.urlencode(command_data),
+                                 timeout=TIMEOUT))
     except:
       pass
 
