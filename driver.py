@@ -194,7 +194,17 @@ while True:
 
     try:
       item.save()
+    except boto.exception.SDBResponseError as e:
+      print "SimpleDB Failure."
+      try:
+        opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
+                    urllib.urlencode({'url': target_url, 'run': RUN_NUMBER, 'page_id': target_page['id'], 'reason': 'SimpleDB Failure: ' + str(e)}),
+                    timeout=TIMEOUT)
+      except:
+        print "Can't contact main server to report problems."
+      continue
 
+    try:
       command_data = {
         'run': RUN_NUMBER,
         'url': target_page['url'],
@@ -204,14 +214,14 @@ while True:
         }
       for k,v in command_data.items():
         command_data[k] = json.dumps(v)
-
-      f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                      urllib.urlencode(command_data),
-                      timeout=TIMEOUT)
+          
+        f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
+                          urllib.urlencode(command_data),
+                          timeout=TIMEOUT)
       if VERBOSE:
         pprint.pprint(data)
     except:
-      raise
+      pass
 
     if failed:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
