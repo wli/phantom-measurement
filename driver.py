@@ -1,5 +1,6 @@
 # coding=utf-8
 import boto
+import collections
 import getopt
 import glob
 import itertools
@@ -135,6 +136,8 @@ while True:
     # Clear the proxy log
     httpd.logs = []
 
+    # TODO: filter hashes from URLs
+
     # Run JS file
     phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=yes', '--proxy=' + httpd_addr, js.name, target_url, output.name], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     now = time.time()
@@ -194,11 +197,18 @@ while True:
 
         print "Header timeout failed."
         continue # Move onto next page
-    headers = ['%s: %s' % (key.lower(), value) for key, value in headers]
 
-    all_items = []
-    
+    # Add headers to data
+    data['headers'] = ['%s: %s' % (key.lower(), value) for key, value in headers]
+
+    # Add transfer information to data
+    transfers = collections.defaultdict(int)
+    for connection in connection_log:
+      transfers[connection['request_uri']] += connection['response_payload_size']
+    data['transfers'] = transfers
+
     # Page row
+    all_items = []
     page = sdb_domain.new_item('page-%d' % target_page['id'])
     page['run'] = RUN_NUMBER
     page['original_url'] = target_page['url'] # original url
@@ -207,27 +217,8 @@ while True:
     page['depth'] = target_page['depth']
     all_items.append(page)
     
-    # Rows for headers
-    header_rows = []
-    for num, header_group in enumerate(itertools.izip_longest(*([iter(headers)] * 250))):
-      header_row = sdb_domain.new_item('headers-%d-%d' % (num, target_page['id']))
-      header_row['run'] = page['run']
-      header_row['url'] = page['url']
-      header_row['page_id'] = page['page_id']
-      for header in header_group:
-        if header is None: break
-        v = json.dumps(header)
-        if len(v) > 1024: 
-          report_failure(url=target_url, run=RUN_NUMBER, page_id=target_page['id'], reason='Value too large: %s=%s' % ('headers', v))
-        else: header_row.add_value('headers', v)
-
-      all_items.append(header_row)
-
-    # Rows for connections
-    # TODO
-
     # Rows for other PhantomJS data
-    wanted_keys = ('cookies', 'frames', 'images', 'jquery', 'links', 'scripts', 'secureForm', 'stylesheets')
+    wanted_keys = ('cookies', 'frames', 'images', 'jquery', 'links', 'scripts', 'secureForm', 'stylesheets', 'connections', 'headers', 'transfers')
     for key in wanted_keys:
       try: value = data[key]
       except: continue
@@ -256,6 +247,9 @@ while True:
 
     for item in all_items:
       try:
+        if VERBOSE: 
+          print item.name
+          pprint.pprint(item)
         item.save()
       except boto.exception.SDBResponseError as e:
         print "SimpleDB Failure."
@@ -275,8 +269,6 @@ while True:
         f = opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
                           urllib.urlencode(command_data),
                           timeout=TIMEOUT)
-      if VERBOSE:
-        pprint.pprint(data)
     except:
       pass
 
