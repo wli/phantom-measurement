@@ -12,6 +12,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib
 import urllib2
@@ -33,15 +34,19 @@ TIMEOUT = 60
 def usage():
   print "python driver.py -r <run> --debug --phantomjs-path=<path>"
 
-def report_failure(**kwargs):
-  try:
-    if VERBOSE: print kwargs['reason']
-    opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                urllib.urlencode(kwargs),
-                timeout=TIMEOUT)
-  except:
-    print "Can't contact main server to report problems."
+def async(func):
+  threading.Thread(target=func).start()
 
+def report_failure(**kwargs):
+  def run():
+    try:
+      if VERBOSE: print kwargs['reason']
+      opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
+                  urllib.urlencode(kwargs),
+                  timeout=TIMEOUT)
+    except:
+      print "Can't contact main server to report problems."
+  async(run)
 
 try:
   opts, args = getopt.getopt(sys.argv[1:], "hr:dp:vb:s", ["help", "run=", "debug", "phantomjs-path=", "verbose", "batch=", "stop"])
@@ -255,7 +260,7 @@ while True:
         if VERBOSE: 
           print item.name
           pprint.pprint(item)
-        item.save()
+        async(lambda: item.save())
       except boto.exception.SDBResponseError as e:
         print "SimpleDB Failure."
         report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='SimpleDB Failure: ' + str(e))
