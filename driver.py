@@ -241,7 +241,8 @@ while True:
         row['run'] = page['run']
         row['url'] = page['url']
         row['page_id'] = page['page_id']
-        for v in pair_values:
+        for v in group:
+          if v is None: break
           v = json.dumps(v)
           if len(v) > 1024: 
             report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='Value too large: %s=%s' % (key, v))
