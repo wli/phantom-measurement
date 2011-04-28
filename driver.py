@@ -197,7 +197,7 @@ while True:
         #      header_data["php_version"] = v.replace("PHP/", '')
         #header_data["headers"] = h.info().items()
       except urllib2.URLError as e:
-        report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='header timeout\n' + e.read())
+        report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='header timeout\n' + (e.read() if 'read' in dir(e) else ''))
 
         print "Header timeout failed."
         continue # Move onto next page
