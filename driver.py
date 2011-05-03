@@ -227,7 +227,7 @@ while True:
     all_items.append(page)
     
     # Rows for other PhantomJS data
-    wanted_keys = ('cookies', 'frames', 'images', 'jquery', 'links', 'scripts', 'secureForm', 'stylesheets', 'connections', 'headers', 'transfers')
+    wanted_keys = ('cookies', 'frames', 'images', 'jquery_version', 'links', 'scripts', 'secureForm', 'stylesheets', 'connections', 'headers', 'transfers')
     for key in wanted_keys:
       try: value = data[key]
       except: continue
