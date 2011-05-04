@@ -1,5 +1,6 @@
 # coding=utf-8
 import collections
+import copy
 import couchdb
 import errno
 import getopt
@@ -238,7 +239,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
     # Page row
     page = {}
     page['run'] = RUN_NUMBER
-    page['original_url'] = target_page['url'] # original url
+    page['original_url'] = target_page['url'] # original u
     page['url'] = url # final url
     #page['page_id'] = target_page['id']
     page['depth'] = target_page['depth']
