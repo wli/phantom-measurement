@@ -1,5 +1,4 @@
 # coding=utf-8
-import boto
 import collections
 import couchdb
 import errno
@@ -43,16 +42,13 @@ def usage():
 def async(func):
   threading.Thread(target=func).start()
 
-def report_failure(**kwargs):
-  def run():
-    try:
-      if VERBOSE: print kwargs['reason']
-      opener.open("http://%s/cs261/failed_page/add/" % TARGET_SERVER,
-                  urllib.urlencode(kwargs),
-                  timeout=TIMEOUT)
-    except:
-      print "Can't contact main server to report problems."
-  #async(run)
+def report_failure(url, run, reason):
+  global cdb_server
+  try:
+    fdb = cdb_server["run%d-failures" % RUN_NUMBER]
+  except:
+    fdb = cdb_server.create("run%d-failures" % RUN_NUMBER)
+  fdb[url] = {'url': url, 'run': run, 'reason': reason}
 
 try:
   opts, args = getopt.getopt(sys.argv[1:], "hr:dp:vb:s", ["help", "run=", "debug", "phantomjs-path=", "verbose", "batch=", "stop"])
