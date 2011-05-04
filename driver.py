@@ -112,6 +112,7 @@ rmq_channel = rmq_connection.channel()
 
 rmq_channel.queue_declare(queue="run%d" % RUN_NUMBER, durable=True,
                           exclusive=False, auto_delete=False)
+rmq_channel.basic_qos(prefetch_count=1)
 
 def handle_delivery(channel, method_frame, header_frame, body):
   # Receive the data in 3 frames from RabbitMQ
