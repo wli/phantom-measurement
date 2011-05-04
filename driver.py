@@ -149,7 +149,11 @@ def handle_delivery(channel, method_frame, header_frame, body):
         phantom.terminate()
         phantom_timed_out = True
         print "Killed PhantomJS for taking too much time."
-        report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS timeout')
+        try:
+          report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS timeout')
+        except couchdb.http.ResourceConflict:
+          # already been reported
+          pass
         break
       time.sleep(0.5)
     
