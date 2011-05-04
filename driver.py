@@ -209,7 +209,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
 
     if VERBOSE:
       print "Saving %s" % page['original_url']
-      pprint(page)
+      pprint.pprint(page)
     try:
       cdb[page['original_url']] = page
     except:
