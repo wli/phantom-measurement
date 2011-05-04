@@ -37,6 +37,7 @@ import cStringIO as StringIO
 import errno
 import json
 import threading
+import time
 
 class HTTPLoggedRequest(object):
   def __init__(self, method, destination):
@@ -51,6 +52,8 @@ class HTTPLoggedRequest(object):
 
     self.response_headers_remaining = True
     self.response_header_data = ''
+    
+    self.start_time = time.time()
 
   def observe_from_server(self, data):
     if hasattr(self, 'response_headers_remaining'): 
@@ -83,6 +86,10 @@ class HTTPLoggedRequest(object):
   def add_request_headers(self, headers):
     self.request_headers = headers.items()
 
+  def finished(self):
+    self.elapsed_time = time.time() - self.start_time
+    del self.start_time
+
 class TunnelLoggedRequest(object):
   def __init__(self, destination):
     self.method = 'CONNECT'
@@ -91,11 +98,17 @@ class TunnelLoggedRequest(object):
     self.response_payload_size = 0
     self.request_payload_size = 0
 
+    self.start_time = time.time()
+
   def observe_from_client(self, data):
     self.request_payload_size += len(data)
 
   def observe_from_server(self, data):
     self.response_payload_size += len(data)
+
+  def finished(self):
+    self.elapsed_time = time.time() - self.start_time
+    del self.start_time
   
 def supply_http_logger(func, method):
   return lambda self: func(self, HTTPLoggedRequest(method, self.path))
@@ -137,6 +150,7 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
 #      print "\t" "bye"
       soc.close()
       self.request.close()
+      logger.finished()
       self.server.log(logger)
 
   def _respond(self, logger):
@@ -166,6 +180,7 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
       #print "\t" "bye"
       soc.close()
       self.request.close()
+      logger.finished()
       self.server.log(logger)
 
   def _read_write(self, soc, logger, max_idling=20):

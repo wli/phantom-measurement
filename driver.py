@@ -229,9 +229,10 @@ def handle_delivery(channel, method_frame, header_frame, body):
     extract_headers_end_time = time.time()
 
     # Add transfer information to data
-    transfers = collections.defaultdict(int)
+    transfers = collections.defaultdict(lambda: {'bytes': 0, 'seconds': 0})
     for connection in connection_log:
-      transfers[connection['request_uri']] += connection['response_payload_size']
+      transfers[connection['request_uri']]['bytes'] += connection['response_payload_size']
+      transfers[connection['request_uri']]['seconds'] += connection['elapsed_time']
     data['transfers'] = transfers
 
     # Page row
