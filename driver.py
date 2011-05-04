@@ -193,6 +193,13 @@ def handle_delivery(channel, method_frame, header_frame, body):
         report_failure(url=target_page['url'], run=RUN_NUMBER, reason='header timeout\n' + (e.read() if 'read' in dir(e) else ''))
 
         print "Header timeout failed."
+
+        # ACK this message so it's off the queue.
+        if VERBOSE:
+          print 'Acking...',
+        rmq_channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+        if VERBOSE:
+          print 'Done! Waiting for another response...'
         return # Move onto next page
         #continue
 
