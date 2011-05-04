@@ -241,6 +241,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
     #page['page_id'] = target_page['id']
     page['depth'] = target_page['depth']
     page['phantom_timed_out'] = phantom_timed_out
+    page['separate_header_call'] = separate_header_call
 
     page.update(data)
 
