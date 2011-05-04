@@ -185,14 +185,22 @@ def handle_delivery(channel, method_frame, header_frame, body):
     # TODO: Get Flash LSOs
 
 
-    failed = False
+    phantomjs_failed_to_run = False
     output.seek(0)
 
     try:
-      data = json.loads(output.read())
+      output = output.read()
+      data = json.loads(output)
     except ValueError:
       data = {}
-      if not phantom_timed_out: failed = True
+      if not phantom_timed_out: 
+        phantomjs_failed_to_run = True
+    
+    # See if PhantomJS reported failure
+    if 'failed_to_load' in data:
+      report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS failed to load page.', process_time=(time.time() - start_time), phantom_process_time=(phantom_end_time-phantom_start_time))
+      ack_message(method_frame)
+      return
 
     # Extract desired header data
     url = data['url'] if 'url' in data else target_page['url']
