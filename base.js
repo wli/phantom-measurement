@@ -26,7 +26,7 @@
       var results = {"failed_to_load": true};
     }
 
-    results['load_time'] = phantom.loadTime / 1000; // Milliseconds to seconds
+    results['page_load_time'] = phantom.loadTime / 1000; // Milliseconds to seconds
 
     phantom.setOutputPath(phantom.args[1]);
     phantom.write(JSON.stringify(results));
