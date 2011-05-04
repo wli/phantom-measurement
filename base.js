@@ -13,13 +13,17 @@
       phantom.open(phantom.args[0]);
     }
   } else {
-    var results = {"url": window.location.href, "original_url": phantom.args[0]};
-    for (var name in phantom.modules) {
-      try {
-        results[name] = phantom.modules[name].run();
-      } catch(e) {
-        results[name] = '!!! EXCEPTION !!! ' + e.toString();
+    if (phantom.loadStatus === 'success') {
+      var results = {"url": window.location.href, "original_url": phantom.args[0]};
+      for (var name in phantom.modules) {
+        try {
+          results[name] = phantom.modules[name].run();
+        } catch(e) {
+          results[name] = '!!! EXCEPTION !!! ' + e.toString();
+        }
       }
+    } else {
+      var results = {"failed_to_load": true};
     }
 
     phantom.setOutputPath(phantom.args[1]);
