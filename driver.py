@@ -196,6 +196,8 @@ def handle_delivery(channel, method_frame, header_frame, body):
       if not phantom_timed_out: 
         phantomjs_failed_to_run = True
     
+    url = data['url'] if 'url' in data else target_page['url']
+
     # See if PhantomJS reported failure
     if 'failed_to_load' in data:
       report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS failed to load page.', process_time=(time.time() - start_time), phantom_process_time=(phantom_end_time-phantom_start_time))
@@ -205,9 +207,8 @@ def handle_delivery(channel, method_frame, header_frame, body):
     extract_headers_start_time = time.time()
     separate_header_call = False
     # Extract desired header data
-    url = data['url'] if 'url' in data else target_page['url']
     for connection in connection_log:
-      if connection['request_uri'] == request_url:
+      if connection['request_uri'] == url:
         headers = connection['response_headers']
         break
     else:
@@ -237,7 +238,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
     page = {}
     page['run'] = RUN_NUMBER
     page['original_url'] = target_page['url'] # original url
-    page['url'] = data['url'] if 'url' in data else target_page['url'] # final url
+    page['url'] = url # final url
     #page['page_id'] = target_page['id']
     page['depth'] = target_page['depth']
     page['phantom_timed_out'] = phantom_timed_out
