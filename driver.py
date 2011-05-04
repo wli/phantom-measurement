@@ -48,7 +48,14 @@ def report_failure(url, run, reason):
     fdb = cdb_server["run%d-failures" % RUN_NUMBER]
   except:
     fdb = cdb_server.create("run%d-failures" % RUN_NUMBER)
-  fdb[url] = {'url': url, 'run': run, 'reason': reason}
+
+  try:
+    fdb[url] = {'url': url, 'run': run, 'reason': reason}
+  except couchdb.http.ResourceConflict:
+    # already been reported
+    if VERBOSE:
+      print "Failure already reported."
+    pass
 
 try:
   opts, args = getopt.getopt(sys.argv[1:], "hr:dp:vb:s", ["help", "run=", "debug", "phantomjs-path=", "verbose", "batch=", "stop"])
@@ -149,11 +156,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
         phantom.terminate()
         phantom_timed_out = True
         print "Killed PhantomJS for taking too much time."
-        try:
-          report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS timeout')
-        except couchdb.http.ResourceConflict:
-          # already been reported
-          pass
+        report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS timeout')
         break
       time.sleep(0.5)
     
