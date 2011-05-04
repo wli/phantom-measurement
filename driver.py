@@ -229,6 +229,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
 
     page.update(data)
 
+    link_process_start_time = time.time()
     if target_page['depth'] > 0 and 'links' in page:
       links = sorted(page['links'].items(), key=lambda x: x[1], reverse=True)
       scale_factor = 1
@@ -257,6 +258,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
               break
 
     page['process_time'] = time.time() - start_time
+    page['link_process_time'] = time.time() - link_process_start_time
     page['phantom_process_time'] = phantom_end_time - phantom_start_time
 
     if VERBOSE:
