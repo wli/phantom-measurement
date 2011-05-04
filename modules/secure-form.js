@@ -10,28 +10,30 @@ phantom.modules.secureForm = {
       return result;
     });
 
-    var actions = {'formless': 0, 'unknownAction': 0, 'javascript': 0, 'http': 0, 'https': 0};
-    _.each(passwordFields, function(pwElem) {
-      if (!pwElem.form) {
-        actions.formless += 1; 
-        return;
-      }
+    if (passwordFields.length > 0) {
+      var actions = {'formless': 0, 'unknownAction': 0, 'javascript': 0, 'http': 0, 'https': 0};
+      _.each(passwordFields, function(pwElem) {
+        if (!pwElem.form) {
+          actions.formless += 1; 
+          return;
+        }
 
-      if (!pwElem.form.action) {
-        actions.unknownAction += 1;
-        return;
-      }
-      
-      if (pwElem.form.action.search(/^https/) !== -1)
-        actions.https += 1;
-      else if (pwElem.form.action.search(/^http/) !== -1)
-        actions.http += 1;
-      else if (pwElem.form.action.search(/^javascript/) !== -1)
-        actions.javascript += 1;
-      else
-        actions.unknownAction += 1;
-    });
+        if (!pwElem.form.action) {
+          actions.unknownAction += 1;
+          return;
+        }
+        
+        if (pwElem.form.action.search(/^https/) !== -1)
+          actions.https += 1;
+        else if (pwElem.form.action.search(/^http/) !== -1)
+          actions.http += 1;
+        else if (pwElem.form.action.search(/^javascript/) !== -1)
+          actions.javascript += 1;
+        else
+          actions.unknownAction += 1;
+      });
 
-    return actions;
+      return actions;
+    }
   }
 };
