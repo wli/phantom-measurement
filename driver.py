@@ -1,13 +1,16 @@
 # coding=utf-8
 import boto
 import collections
+import couchdb
 import errno
 import getopt
 import glob
 import itertools
 import json
 import os
+import pika
 import pprint
+import random
 import signal
 import subprocess
 import sys
@@ -19,6 +22,9 @@ import urllib2
 import urlparse
 
 import proxy
+from pika.adapters import BlockingConnection
+
+pika.log.setup(color=True)
 
 #signal.signal(signal.SIGINT, lambda a, b: sys.exit())
 
@@ -46,7 +52,7 @@ def report_failure(**kwargs):
                   timeout=TIMEOUT)
     except:
       print "Can't contact main server to report problems."
-  async(run)
+  #async(run)
 
 try:
   opts, args = getopt.getopt(sys.argv[1:], "hr:dp:vb:s", ["help", "run=", "debug", "phantomjs-path=", "verbose", "batch=", "stop"])
@@ -75,19 +81,6 @@ for o, a in opts:
   else:
     assert False, "unhandled option"
 
-# dependant constants
-TARGET_SERVER = "ldr.myvnc.com:8889" if DEBUG else "cs261.freewli.com"    
-QUEUE_URL = "http://%s/cs261/queue_page/list/.json?run=%d&limit=%%d" % (TARGET_SERVER, RUN_NUMBER)
-
-# open up a connection to SimpleDB
-sdb = boto.connect_sdb('1KP2TM5CMYJAWJ8R5V02', 'f0CVp8g8Vbc49sHr7LVIIB1El2Y990XUro7QgVsd')
-try:
-  sdb_domain = sdb.get_domain('measurement', validate=True)
-except boto.exception.SDBResponseError:
-  print "Error: SimpleDB domain 'measurement' does not exist. Creating..."
-  sdb_domain = sdb.create_domain('measurement')
-  exit()
-
 # Build JS file
 js = tempfile.NamedTemporaryFile(suffix='.js')
 for fn in glob.glob('modules/*.js'):
@@ -98,6 +91,7 @@ for fn in glob.glob('modules/*.js'):
 js.write(open('base.js', 'r').read())
 js.flush()
 
+# build URL opener
 opener = urllib2.build_opener()
 opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24'), ('Accept', 'application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5'), ('Accept-Language', 'en-US,en;q=0.8'), ('Accept-Charset', 'ISO-8859-1,utf-8;q=0.7,*;q=0.3')]
 
@@ -105,36 +99,33 @@ opener.addheaders = [('User-agent', 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWe
 httpd = proxy.start_proxy()
 httpd_addr = '%s:%d' % httpd.server_address
 
-while True:
+# connect to CouchDB
+TARGET_CDB_SERVER = "http://ldr.myvnc.com:5984" if DEBUG else "http://noddy.cs.berkeley.edu:5984"
+cdb_server = couchdb.client.Server(url=TARGET_CDB_SERVER)
+try:
+  cdb = cdb_server["run%d" % RUN_NUMBER]
+except:
+  cdb = cdb_server.create("run%d" % RUN_NUMBER)
+
+# Connect to RabbitMQ
+TARGET_RMQ_SERVER = "ldr.myvnc.com" if DEBUG else "noddy.cs.berkeley.edu"
+parameters = pika.ConnectionParameters(TARGET_RMQ_SERVER)
+rmq_connection = BlockingConnection(parameters)
+rmq_channel = rmq_connection.channel()
+
+rmq_channel.queue_declare(queue="run%d" % RUN_NUMBER, durable=True,
+                          exclusive=False, auto_delete=False)
+
+def handle_delivery(channel, method_frame, header_frame, body):
+  # Receive the data in 3 frames from RabbitMQ
+  if VERBOSE:
+    pika.log.info("Basic.Deliver %s delivery-tag %i: %s",
+                  header_frame.content_type,
+                  method_frame.delivery_tag,
+                  body)
+
   try:
-    f = opener.open(QUEUE_URL % PAGES_PER_BATCH, timeout=TIMEOUT)
-  except:
-    print "Could not contact main server. Sleeping for 30 seconds..."
-    time.sleep(30)
-    continue
-  r = f.read()
-  try:
-    data = json.loads(r)
-  except:
-    print r
-    break
-
-  if data["message"] == "kill":
-    print "Received kill command."
-    exit()
-
-  if len(data["pages"]) == 0:
-    if STOP_ON_EMPTY:
-      print "No more pages to run. Stopping execution..."
-      break
-    else:
-      print "No more pages to run. Sleeping for 30 seconds..."
-      time.sleep(30)
-      continue
-
-  print "%d page(s) to process..." % len(data["pages"])
-
-  for target_page in data["pages"]:
+    target_page = json.loads(body)
     print "Processing %s" % target_page['url']
 
     output = tempfile.NamedTemporaryFile()
@@ -160,7 +151,7 @@ while True:
         phantom.terminate()
         phantom_timed_out = True
         print "Killed PhantomJS for taking too much time."
-        report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='PhantomJS timeout')
+        report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS timeout')
         break
       time.sleep(0.5)
     
@@ -193,19 +184,12 @@ while True:
       try:
         h = opener.open(request_url, timeout=TIMEOUT)
         headers = h.info().items()
-        #for k, v in h.info().items():
-        #  if k == "server":
-        #    header_data["server_version"] = v
-        #  if k == "x-powered-by":
-        #    header_data["powered_by"] = v
-        #    if v.startswith("PHP/"):
-        #      header_data["php_version"] = v.replace("PHP/", '')
-        #header_data["headers"] = h.info().items()
       except urllib2.URLError as e:
-        report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='header timeout\n' + (e.read() if 'read' in dir(e) else ''))
+        report_failure(url=target_page['url'], run=RUN_NUMBER, reason='header timeout\n' + (e.read() if 'read' in dir(e) else ''))
 
         print "Header timeout failed."
-        continue # Move onto next page
+        return # Move onto next page
+        #continue
 
     # Add headers to data
     data['headers'] = ['%s: %s' % (key.lower(), value) for key, value in headers]
@@ -217,74 +201,67 @@ while True:
     data['transfers'] = transfers
 
     # Page row
-    all_items = []
-    page = sdb_domain.new_item('page-%d' % target_page['id'])
+    page = {}
     page['run'] = RUN_NUMBER
     page['original_url'] = target_page['url'] # original url
     page['url'] = data['url'] if 'url' in data else target_page['url'] # final url
-    page['page_id'] = target_page['id']
+    #page['page_id'] = target_page['id']
     page['depth'] = target_page['depth']
-    all_items.append(page)
-    
-    # Rows for other PhantomJS data
-    wanted_keys = ('cookies', 'frames', 'images', 'jquery_version', 'links', 'scripts', 'secureForm', 'stylesheets', 'connections', 'headers', 'transfers')
-    for key in wanted_keys:
-      try: value = data[key]
-      except: continue
-      # Is it a list?
-      if isinstance(value, (list, tuple)):
-        pair_values = value
 
-      # Is it a dictionary?
-      elif isinstance(value, dict):
-        pair_values = value.items()
+    page.update(data)
 
-      # Is it something else?
-      else: pair_values = [value]
-
-      for num, group in enumerate(itertools.izip_longest(*([iter(pair_values)] * 250))):
-        row = sdb_domain.new_item('%s-%d-%d' % (key, num, target_page['id']))
-        row['run'] = page['run']
-        row['url'] = page['url']
-        row['page_id'] = page['page_id']
-        for v in group:
-          if v is None: break
-          v = json.dumps(v)
-          if len(v) > 1024: 
-            report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='Value too large: %s=%s' % (key, v))
-          else: row.add_value(key, v)
-        all_items.append(row)
-
-    for item in all_items:
-      try:
-        if VERBOSE: 
-          print item.name
-          pprint.pprint(item)
-        async(lambda: item.save())
-      except boto.exception.SDBResponseError as e:
-        print "SimpleDB Failure."
-        report_failure(url=target_page['url'], run=RUN_NUMBER, page_id=target_page['id'], reason='SimpleDB Failure: ' + str(e))
-
+    if VERBOSE:
+      print "Saving %s" % page['original_url']
+      pprint(page)
     try:
-      command_data = {
-        'run': RUN_NUMBER,
-        'url': target_page['url'],
-        'page_id': target_page['id'],
-        'depth': target_page['depth'],
-        'links': data['links'] if 'links' in data else {}
-      }
-      for k,v in command_data.iteritems():
-        command_data[k] = json.dumps(v)
-      if VERBOSE: print command_data 
-      async(lambda: opener.open("http://%s/cs261/internet_page/add/" % TARGET_SERVER,
-                                 urllib.urlencode(command_data),
-                                 timeout=TIMEOUT))
+      cdb[page['original_url']] = page
     except:
-      pass
+      print "CouchDB Failure, possible key collision"
 
+    if target_page['depth'] > 0:
+      links = sorted(page['links'].items(), key=lambda x: x[1], reverse=True)
+      scale_factor = 1
+      for i in range(target_page['fanout']):
+        if len(links) > 0:
+          r = random.random() * scale_factor
+          for url, weight in links:
+            r -= weight
+            if r <= 0:
+              command_data = {
+                'run': RUN_NUMBER,
+                'url': url,
+                'fanout': target_page['fanout'],
+                'depth': target_page['depth'] - 1
+                }
+              if VERBOSE:
+                print "Adding page %s" % url
+              rmq_channel.basic_publish(exchange='',
+                                        routing_key="run%d" % RUN_NUMBER,
+                                        body=json.dumps(command_data),
+                                        properties=pika.BasicProperties(
+                  content_type="text/plain",
+                  delivery_mode=1))
+              scale_factor -= weight
+              links.remove((url, weight))
+              break
+
+    if VERBOSE:
+      print 'Acking...',
+    rmq_channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+    if VERBOSE:
+      print 'Done! Waiting for another response...'
     if failed:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
       exit()
+  except:
+    print "Could not parse RabbitMQ response."
+    raise
+
+# We're stuck looping here since this is a blocking adapter
+rmq_channel.basic_consume(handle_delivery, queue='run%d' % RUN_NUMBER)
+rmq_channel.start_consuming()
+
+rmq_connection.close()
 
 # Delete temporary JS file
 js.close()
