@@ -42,7 +42,7 @@ def usage():
 def async(func):
   threading.Thread(target=func).start()
 
-def report_failure(url, run, reason):
+def report_failure(url, run, reason, process_time, phantom_process_time):
   global cdb_server
   try:
     fdb = cdb_server["run%d-failures" % RUN_NUMBER]
@@ -50,7 +50,7 @@ def report_failure(url, run, reason):
     fdb = cdb_server.create("run%d-failures" % RUN_NUMBER)
 
   try:
-    fdb[url] = {'url': url, 'run': run, 'reason': reason}
+    fdb[url] = {'url': url, 'run': run, 'reason': reason, 'process_time': process_time, 'phantom_process_time': phantom_process_time}
   except couchdb.http.ResourceConflict:
     # already been reported
     if VERBOSE:
@@ -122,6 +122,7 @@ rmq_channel.queue_declare(queue="run%d" % RUN_NUMBER, durable=True,
 rmq_channel.basic_qos(prefetch_count=5)
 
 def handle_delivery(channel, method_frame, header_frame, body):
+  start_time = time.time()
   # Receive the data in 3 frames from RabbitMQ
   if VERBOSE:
     pika.log.info("Basic.Deliver %s delivery-tag %i: %s",
@@ -145,6 +146,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
       request_url += ('&' if '?' in request_url else '?') + '_escaped_fragment_=' + urllib.quote(fragment[1:])
 
     # Run JS file
+    phantom_start_time = time.time()
     phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=no', '--proxy=' + httpd_addr, js.name, request_url, output.name])#, stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     now = time.time()
     phantom_timed_out = False
@@ -156,10 +158,10 @@ def handle_delivery(channel, method_frame, header_frame, body):
         phantom.terminate()
         phantom_timed_out = True
         print "Killed PhantomJS for taking too much time."
-        report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS timeout')
+        report_failure(url=target_page['url'], run=RUN_NUMBER, reason='PhantomJS timeout', process_time=(time.time()-start_time), phantom_process_time=(time.time()-phantom_start_time))
         break
       time.sleep(0.5)
-    
+    phantom_end_time = time.time()
     # Get proxy log
     connection_log = httpd.logs
 
@@ -190,7 +192,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
         h = opener.open(request_url, timeout=TIMEOUT)
         headers = h.info().items()
       except urllib2.URLError as e:
-        report_failure(url=target_page['url'], run=RUN_NUMBER, reason='header timeout\n' + (e.read() if 'read' in dir(e) else ''))
+        report_failure(url=target_page['url'], run=RUN_NUMBER, reason='header timeout\n' + (e.read() if 'read' in dir(e) else ''), process_time=(time.time()-start_time), phantom_process_time=(phantom_end_time-phantom_start_time))
 
         print "Header timeout failed."
 
@@ -219,16 +221,9 @@ def handle_delivery(channel, method_frame, header_frame, body):
     page['url'] = data['url'] if 'url' in data else target_page['url'] # final url
     #page['page_id'] = target_page['id']
     page['depth'] = target_page['depth']
+    page['phantom_timed_out'] = phantom_timed_out
 
     page.update(data)
-
-    if VERBOSE:
-      print "Saving %s" % page['original_url']
-      pprint.pprint(page)
-    try:
-      cdb[page['original_url']] = page
-    except:
-      print "CouchDB Failure, possible key collision"
 
     if target_page['depth'] > 0 and 'links' in page:
       links = sorted(page['links'].items(), key=lambda x: x[1], reverse=True)
@@ -256,6 +251,17 @@ def handle_delivery(channel, method_frame, header_frame, body):
               scale_factor -= weight
               links.remove((url, weight))
               break
+
+    page['process_time'] = time.time() - start_time
+    page['phantom_process_time'] = phantom_end_time - phantom_start_time
+
+    if VERBOSE:
+      print "Saving %s" % page['original_url']
+      pprint.pprint(page)
+    try:
+      cdb[page['original_url']] = page
+    except:
+      print "CouchDB Failure, possible key collision"
 
     if VERBOSE:
       print 'Acking...',
