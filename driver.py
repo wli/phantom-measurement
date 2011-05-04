@@ -132,6 +132,10 @@ def handle_delivery(channel, method_frame, header_frame, body):
 
   try:
     target_page = json.loads(body)
+    if target_page.get("status") == "kill":
+      rmq_channel.basic_ack(delivery_tag=method_frame.delivery_tag)  
+      exit()
+
     print "Processing %s" % target_page['url']
 
     output = tempfile.NamedTemporaryFile()
