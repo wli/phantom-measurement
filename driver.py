@@ -102,6 +102,7 @@ httpd_addr = '%s:%d' % httpd.server_address
 # connect to CouchDB
 TARGET_CDB_SERVER = "http://ldr.myvnc.com:5984" if DEBUG else "http://noddy.cs.berkeley.edu:5984"
 cdb_server = couchdb.client.Server(url=TARGET_CDB_SERVER)
+cdb_server.resource.credentials = ('measurement', 'g0b3ars')
 try:
   cdb = cdb_server["run%d" % RUN_NUMBER]
 except:
