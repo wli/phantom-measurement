@@ -1,6 +1,5 @@
 # coding=utf-8
 import collections
-import copy
 import couchdb
 import errno
 import getopt
