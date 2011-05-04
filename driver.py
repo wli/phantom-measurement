@@ -57,6 +57,14 @@ def report_failure(url, run, reason, process_time, phantom_process_time):
       print "Failure already reported."
     pass
 
+def ack_message(method_frame):
+  # ACK this message so it's off the queue.
+  if VERBOSE:
+    print 'Acking...',
+  rmq_channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+  if VERBOSE:
+    print 'Done! Waiting for another response...'
+
 try:
   opts, args = getopt.getopt(sys.argv[1:], "hr:dp:vb:s", ["help", "run=", "debug", "phantomjs-path=", "verbose", "batch=", "stop"])
 except getopt.GetoptError, err:
@@ -133,7 +141,8 @@ def handle_delivery(channel, method_frame, header_frame, body):
   try:
     target_page = json.loads(body)
     if target_page.get("status") == "kill":
-      rmq_channel.basic_ack(delivery_tag=method_frame.delivery_tag)  
+      print "Dying per request."
+      ack_message(method_frame)
       exit()
 
     print "Processing %s" % target_page['url']
@@ -200,14 +209,8 @@ def handle_delivery(channel, method_frame, header_frame, body):
 
         print "Header timeout failed."
 
-        # ACK this message so it's off the queue.
-        if VERBOSE:
-          print 'Acking...',
-        rmq_channel.basic_ack(delivery_tag=method_frame.delivery_tag)
-        if VERBOSE:
-          print 'Done! Waiting for another response...'
+        ack_message(method_frame)
         return # Move onto next page
-        #continue
 
     # Add headers to data
     data['headers'] = ['%s: %s' % (key.lower(), value) for key, value in headers]
@@ -267,14 +270,10 @@ def handle_delivery(channel, method_frame, header_frame, body):
     except:
       print "CouchDB Failure, possible key collision"
 
-    if VERBOSE:
-      print 'Acking...',
-    rmq_channel.basic_ack(delivery_tag=method_frame.delivery_tag)
-    if VERBOSE:
-      print 'Done! Waiting for another response...'
-    if failed:
+    ack_message(method_frame)
+    if phantomjs_failed_to_run:
       print "Failed! Try re-running this command with xvfb-run if you're connectd via SSH."
-      exit()
+
   except:
     print "Could not parse RabbitMQ response."
     raise
