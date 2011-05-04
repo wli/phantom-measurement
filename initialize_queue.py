@@ -12,12 +12,13 @@ FANOUT = None
 DEPTH = None
 NUM_SITES = None
 DEBUG = False
+OFFSET = 0
 
 def usage():
-  print "python initialize_queue.py -r <run> -n <num_sites> -f <fanout> -d <depth> --debug"
+  print "python initialize_queue.py -r <run> -n <num_sites> -f <fanout> -d <depth> -o <offset> --debug"
 
 try:
-  opts, args = getopt.getopt(sys.argv[1:], "hr:n:f:d:v", ["help", "run=", "num=", "fanout=", "depth=", "verbose", "debug"])
+  opts, args = getopt.getopt(sys.argv[1:], "hr:n:f:d:vo:", ["help", "run=", "num=", "fanout=", "depth=", "verbose", "debug", "offset="])
 except getopt.GetoptError, err:
   # print help information and exit:
   print str(err) # will print something like "option -a not recognized"
@@ -40,6 +41,8 @@ for o, a in opts:
     DEPTH = int(a)
   elif o in ("--debug"):
     DEBUG = True
+  elif o in ("-o", "--offset"):
+    OFFSET = int(a)
   else:
     assert False, "unhandled option"
 
@@ -67,6 +70,9 @@ reader = csv.reader(open(os.path.join(os.path.dirname(os.path.abspath(__file__))
 
 n = 1
 for row in reader:
+    if n < OFFSET:
+      n += 1
+      continue
     url = "http://%s" % row[1]
     command_data = {
         'run': RUN_NUMBER,
@@ -83,7 +89,7 @@ for row in reader:
             delivery_mode=1))
     print "Delivered"
     n += 1
-    if n > NUM_SITES:
+    if n > NUM_SITES + OFFSET:
         break
 
 rmq_connection.close()
