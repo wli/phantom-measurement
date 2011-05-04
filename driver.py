@@ -215,7 +215,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
     except:
       print "CouchDB Failure, possible key collision"
 
-    if target_page['depth'] > 0:
+    if target_page['depth'] > 0 and 'links' in page:
       links = sorted(page['links'].items(), key=lambda x: x[1], reverse=True)
       scale_factor = 1
       for i in range(target_page['fanout']):
