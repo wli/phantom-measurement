@@ -202,6 +202,8 @@ def handle_delivery(channel, method_frame, header_frame, body):
       ack_message(method_frame)
       return
 
+    extract_headers_start_time = time.time()
+    separate_header_call = False
     # Extract desired header data
     url = data['url'] if 'url' in data else target_page['url']
     for connection in connection_log:
@@ -209,6 +211,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
         headers = connection['response_headers']
         break
     else:
+      separate_header_call = True
       try:
         h = opener.open(request_url, timeout=TIMEOUT)
         headers = h.info().items()
@@ -222,6 +225,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
 
     # Add headers to data
     data['headers'] = ['%s: %s' % (key.lower(), value) for key, value in headers]
+    extract_headers_end_time = time.time()
 
     # Add transfer information to data
     transfers = collections.defaultdict(int)
@@ -237,9 +241,11 @@ def handle_delivery(channel, method_frame, header_frame, body):
     #page['page_id'] = target_page['id']
     page['depth'] = target_page['depth']
     page['phantom_timed_out'] = phantom_timed_out
+    page['separate_header_call'] = separate_header_call
 
     page.update(data)
 
+    link_process_start_time = time.time()
     if target_page['depth'] > 0 and 'links' in page:
       links = sorted(page['links'].items(), key=lambda x: x[1], reverse=True)
       scale_factor = 1
@@ -268,7 +274,9 @@ def handle_delivery(channel, method_frame, header_frame, body):
               break
 
     page['process_time'] = time.time() - start_time
+    page['link_process_time'] = time.time() - link_process_start_time
     page['phantom_process_time'] = phantom_end_time - phantom_start_time
+    page['headers_process_time'] = extract_headers_end_time - extract_headers_start_time
 
     if VERBOSE:
       print "Saving %s" % page['original_url']
