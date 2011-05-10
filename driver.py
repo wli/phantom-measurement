@@ -160,7 +160,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
 
     # Run JS file
     phantom_start_time = time.time()
-    phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=no', '--proxy=' + httpd_addr, js.name, request_url, output.name])#, stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
+    phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=yes', '--proxy=' + httpd_addr, js.name, request_url, output.name])#, stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     now = time.time()
     phantom_timed_out = False
     while True: # If not terminated:
