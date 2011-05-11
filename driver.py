@@ -206,10 +206,14 @@ def handle_delivery(channel, method_frame, header_frame, body):
       request_url += ('&' if '?' in request_url else '?') + '_escaped_fragment_=' + urllib.quote(fragment[1:])
 
     # Clear WebKit profile directory
-    shutil.rmtree(WEBKIT_PROFILE_DIR)
+    for root, dirs, files in os.walk(WEBKIT_PROFILE_DIR):
+      for f in files: os.unlink(os.path.join(root, f))
+      for d in dirs: shutil.rmtree(os.path.join(root, d))
 
     # Clear Flash cookies
-    #shutil.rmtree(FLASH_PLAYER_DIR)
+    for root, dirs, files in os.walk(FLASH_PLAYER_DIR):
+      for f in files: os.unlink(os.path.join(root, f))
+      for d in dirs: shutil.rmtree(os.path.join(root, d))
 
     # Run JS file
     phantom_start_time = time.time()
