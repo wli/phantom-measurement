@@ -1,17 +1,24 @@
 # coding=utf-8
 import collections
 import couchdb
+import datetime
 import errno
 import getopt
 import glob
 import itertools
 import json
+import math
 import os
 import pika
 import pprint
+import pyamf
+import pyamf.sol
+import pyamf.xml
 import random
 import signal
+import shutil
 import subprocess
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -65,6 +72,27 @@ def ack_message(method_frame):
   if VERBOSE:
     print 'Done! Waiting for another response...'
 
+def fix_for_json(page, encountered=[]):
+  for e in encountered:
+    if e is page:
+      return None
+  if isinstance(page, datetime.datetime):
+    return page.isoformat()
+  elif isinstance(page, tuple):
+    return tuple(fix_for_json(item, encountered + [page]) for item in page)
+  elif isinstance(page, list):
+    return [fix_for_json(item, encountered + [page]) for item in page]
+  elif isinstance(page, dict):
+    return dict((fix_for_json(key, encountered + [page]), fix_for_json(value, encountered + [page])) for key, value in page.iteritems())
+  elif isinstance(page, float) and (math.isnan(page) or math.isinf(page)):
+    return 'NaN'
+  elif page is pyamf.Undefined:
+    return None
+  elif pyamf.xml.is_xml(page):
+    return pyamf.xml.tostring(page)
+  else:
+    return page
+
 try:
   opts, args = getopt.getopt(sys.argv[1:], "hr:dp:vb:s", ["help", "run=", "debug", "phantomjs-path=", "verbose", "batch=", "stop"])
 except getopt.GetoptError, err:
@@ -101,6 +129,25 @@ for fn in glob.glob('modules/*.js'):
 
 js.write(open('base.js', 'r').read())
 js.flush()
+
+# Find WebKit profile directory
+WEBKIT_PROFILE_DIR_LOCS = [os.path.expanduser('~/.local/share/data/Ofi Labs/PhantomJS/'),
+                           os.path.expanduser('~/Library/Application Support/Ofi Labs/PhantomJS/')]
+WEBKIT_PROFILE_DIR = WEBKIT_PROFILE_DIR_LOCS[0]
+for d in WEBKIT_PROFILE_DIR_LOCS[1:]:
+  if os.path.exists(d):
+    WEBKIT_PROFILE_DIR = d
+    break
+
+# Find Flash cookie storage location
+FLASH_PLAYER_DIR_LOCS = [os.path.expanduser('~/.macromedia/Flash_Player/#SharedObjects/'),
+                         os.path.expanduser('~/Library/Preferences/Macromedia/Flash Player/#SharedObjects/')]
+                         
+FLASH_PLAYER_DIR = FLASH_PLAYER_DIR_LOCS[0]
+for d in FLASH_PLAYER_DIR_LOCS[1:]:
+  if os.path.exists(d):
+    FLASH_PLAYER_DIR = d
+    break
 
 # build URL opener
 opener = urllib2.build_opener()
@@ -158,6 +205,12 @@ def handle_delivery(channel, method_frame, header_frame, body):
       # Move fragment to request_url
       request_url += ('&' if '?' in request_url else '?') + '_escaped_fragment_=' + urllib.quote(fragment[1:])
 
+    # Clear WebKit profile directory
+    shutil.rmtree(WEBKIT_PROFILE_DIR)
+
+    # Clear Flash cookies
+    #shutil.rmtree(FLASH_PLAYER_DIR)
+
     # Run JS file
     phantom_start_time = time.time()
     phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=yes', '--proxy=' + httpd_addr, js.name, request_url, output.name])#, stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
@@ -175,15 +228,9 @@ def handle_delivery(channel, method_frame, header_frame, body):
         break
       time.sleep(0.5)
     phantom_end_time = time.time()
+
     # Get proxy log
     connection_log = httpd.logs
-
-    # TODO: Get local and SQL storage
-    # src/third_party/WebKit/Source/WebCore/page/SecurityOrigin.cpp
-    # http://codesearch.google.com/codesearch/p#OAMlx_jo-ck/src/third_party/WebKit/Source/WebCore/page/SecurityOrigin.cpp&l=463
-
-    # TODO: Get Flash LSOs
-
 
     phantomjs_failed_to_run = False
     output.seek(0)
@@ -235,6 +282,44 @@ def handle_delivery(channel, method_frame, header_frame, body):
       transfers[connection['request_uri']]['seconds'] += connection['elapsed_time']
     data['transfers'] = transfers
 
+    # Get local storage
+    # TODO: get Web SQL Databases?
+    # src/third_party/WebKit/Source/WebCore/page/SecurityOrigin.cpp
+    # http://codesearch.google.com/codesearch/p#OAMlx_jo-ck/src/third_party/WebKit/Source/WebCore/page/SecurityOrigin.cpp&l=463
+    local_storage = collections.defaultdict(dict)
+    for db_path in glob.glob(os.path.join(WEBKIT_PROFILE_DIR, '*.localstorage')):
+      # Reconstruct origin
+      encoded_origin = os.path.basename(db_path)[:-13]
+      if not encoded_origin.startswith('http'): continue
+      origin_pieces = encoded_origin.split('_')
+      origin = origin_pieces[0] + '://' + '_'.join(origin_pieces[1:-1])
+
+      for key, value in sqlite3.connect(db_path).execute('select * from ItemTable'):
+        local_storage[origin][key] = value
+    data['local_storage'] = dict(local_storage)
+
+    # TODO: Get Flash LSOs
+    flash_cookies = collections.defaultdict(dict)
+    def flash_origins(base):
+      print "flash_origins: %s" % base
+      for path in os.listdir(base):
+        if path[-1] == '#':
+          for dir in os.listdir(os.path.join(base, path)):
+            if not os.path.isdir(dir): continue
+            for result in flash_origins(os.path.join(base, path, dir)): 
+              yield (path[:-1] + result[0], result[1])
+        else: yield (path, os.path.join(base, path))
+    
+    random_str = (d for d in os.listdir(FLASH_PLAYER_DIR) if os.path.isdir(os.path.join(FLASH_PLAYER_DIR, d))).next()
+    for origin, path in flash_origins(os.path.join(FLASH_PLAYER_DIR, random_str)):
+      for sol in glob.glob(os.path.join(path, '*.sol')):
+        sol_name = os.path.basename(sol)[:-4]
+        try:
+          flash_cookies[origin][sol_name] = dict(pyamf.sol.load(sol))
+        except:
+          pass
+    data['flash_cookies'] = dict(flash_cookies)
+
     # Page row
     page = {}
     page['run'] = RUN_NUMBER
@@ -279,6 +364,12 @@ def handle_delivery(channel, method_frame, header_frame, body):
     page['link_process_time'] = time.time() - link_process_start_time
     page['phantom_process_time'] = phantom_end_time - phantom_start_time
     page['headers_process_time'] = extract_headers_end_time - extract_headers_start_time
+
+    # Make sure that the page is JSON-encodable!
+    try:
+      json.dumps(page)
+    except:
+      page = fix_for_json(page)
 
     if VERBOSE:
       print "Saving %s" % page['original_url']
