@@ -86,9 +86,10 @@ class HTTPLoggedRequest(object):
   def add_request_headers(self, headers):
     self.request_headers = headers.items()
 
-  def finished(self):
-    self.elapsed_time = time.time() - self.start_time
-    del self.start_time
+  def finished(self, reference_time):
+    self.start_time -= reference_time
+    self.end_time = time.time() - reference_time
+    self.elapsed_time = self.end_time - self.start_time
 
 class TunnelLoggedRequest(object):
   def __init__(self, destination):
@@ -106,9 +107,10 @@ class TunnelLoggedRequest(object):
   def observe_from_server(self, data):
     self.response_payload_size += len(data)
 
-  def finished(self):
-    self.elapsed_time = time.time() - self.start_time
-    del self.start_time
+  def finished(self, reference_time):
+    self.start_time -= reference_time
+    self.end_time = time.time() - reference_time
+    self.elapsed_time = self.end_time - self.start_time
   
 def supply_http_logger(func, method):
   return lambda self: func(self, HTTPLoggedRequest(method, self.path))
@@ -150,7 +152,7 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
 #      print "\t" "bye"
       soc.close()
       self.request.close()
-      logger.finished()
+      logger.finished(self.server.start_time)
       self.server.log(logger)
 
   def _respond(self, logger):
@@ -180,7 +182,7 @@ class ProxyHandler (BaseHTTPServer.BaseHTTPRequestHandler):
       #print "\t" "bye"
       soc.close()
       self.request.close()
-      logger.finished()
+      logger.finished(self.server.start_time)
       self.server.log(logger)
 
   def _read_write(self, soc, logger, max_idling=20):
@@ -221,10 +223,15 @@ class ThreadingHTTPServer (SocketServer.ThreadingMixIn,
   def __init__(self, *args, **kwargs):
     BaseHTTPServer.HTTPServer.__init__(self, *args, **kwargs)
     self.logs = []
+    self.start_time = time.time()
 
   def log(self, logger):
     # print logger.__dict__
     self.logs.append(logger.__dict__)
+
+  def clear_logs(self):
+    self.start_time = time.time()
+    self.logs = []
 
 def start_proxy():
   httpd = None
