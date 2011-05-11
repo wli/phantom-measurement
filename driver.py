@@ -292,39 +292,44 @@ def handle_delivery(channel, method_frame, header_frame, body):
     # TODO: get Web SQL Databases?
     # src/third_party/WebKit/Source/WebCore/page/SecurityOrigin.cpp
     # http://codesearch.google.com/codesearch/p#OAMlx_jo-ck/src/third_party/WebKit/Source/WebCore/page/SecurityOrigin.cpp&l=463
-    local_storage = collections.defaultdict(dict)
-    for db_path in glob.glob(os.path.join(WEBKIT_PROFILE_DIR, '*.localstorage')):
-      # Reconstruct origin
-      encoded_origin = os.path.basename(db_path)[:-13]
-      if not encoded_origin.startswith('http'): continue
-      origin_pieces = encoded_origin.split('_')
-      origin = origin_pieces[0] + '://' + '_'.join(origin_pieces[1:-1])
+    if os.path.exists(WEBKIT_PROFILE_DIR):
+      local_storage = collections.defaultdict(dict)
+      for db_path in glob.glob(os.path.join(WEBKIT_PROFILE_DIR, '*.localstorage')):
+        # Reconstruct origin
+        encoded_origin = os.path.basename(db_path)[:-13]
+        if not encoded_origin.startswith('http'): continue
+        origin_pieces = encoded_origin.split('_')
+        origin = origin_pieces[0] + '://' + '_'.join(origin_pieces[1:-1])
 
-      for key, value in sqlite3.connect(db_path).execute('select * from ItemTable'):
-        local_storage[origin][key] = value
-    data['local_storage'] = dict(local_storage)
+        for key, value in sqlite3.connect(db_path).execute('select * from ItemTable'):
+          local_storage[origin][key] = value
+      data['local_storage'] = dict(local_storage)
 
-    # TODO: Get Flash LSOs
-    flash_cookies = collections.defaultdict(dict)
-    def flash_origins(base):
-      print "flash_origins: %s" % base
-      for path in os.listdir(base):
-        if path[-1] == '#':
-          for dir in os.listdir(os.path.join(base, path)):
-            if not os.path.isdir(dir): continue
-            for result in flash_origins(os.path.join(base, path, dir)): 
-              yield (path[:-1] + result[0], result[1])
-        else: yield (path, os.path.join(base, path))
-    
-    random_str = (d for d in os.listdir(FLASH_PLAYER_DIR) if os.path.isdir(os.path.join(FLASH_PLAYER_DIR, d))).next()
-    for origin, path in flash_origins(os.path.join(FLASH_PLAYER_DIR, random_str)):
-      for sol in glob.glob(os.path.join(path, '*.sol')):
-        sol_name = os.path.basename(sol)[:-4]
-        try:
-          flash_cookies[origin][sol_name] = dict(pyamf.sol.load(sol))
-        except:
-          pass
-    data['flash_cookies'] = dict(flash_cookies)
+    # Get Flash LSOs
+    if os.path.exists(FLASH_PLAYER_DIR):
+      flash_cookies = collections.defaultdict(dict)
+      def flash_origins(base):
+        print "flash_origins: %s" % base
+        for path in os.listdir(base):
+          if path[-1] == '#':
+            for dir in os.listdir(os.path.join(base, path)):
+              if not os.path.isdir(dir): continue
+              for result in flash_origins(os.path.join(base, path, dir)): 
+                yield (path[:-1] + result[0], result[1])
+          else: yield (path, os.path.join(base, path))
+      
+      try:
+        random_str = (d for d in os.listdir(FLASH_PLAYER_DIR) if os.path.isdir(os.path.join(FLASH_PLAYER_DIR, d))).next()
+        for origin, path in flash_origins(os.path.join(FLASH_PLAYER_DIR, random_str)):
+          for sol in glob.glob(os.path.join(path, '*.sol')):
+            sol_name = os.path.basename(sol)[:-4]
+            try:
+              flash_cookies[origin][sol_name] = dict(pyamf.sol.load(sol))
+            except:
+              pass
+      except StopIteration:
+        pass
+      data['flash_cookies'] = dict(flash_cookies)
 
     # Page row
     page = {}
