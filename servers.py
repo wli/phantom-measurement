@@ -4,7 +4,7 @@ import base64
 import re
 from collections import defaultdict
 
-req = urllib2.Request("http://noddy.cs.berkeley.edu:5984/run3/_design/pages/_view/server_versions?group=true")
+req = urllib2.Request("http://noddy.cs.berkeley.edu:5984/run4/_design/pages/_view/server_versions?group=true")
 base64string = base64.encodestring('%s:%s' % ('measurement', 'g0b3ars'))[:-1]
 req.add_header("Authorization", "Basic %s" % base64string)
 

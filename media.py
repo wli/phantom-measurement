@@ -6,7 +6,7 @@ import sys
 from statlib import stats
 from collections import defaultdict
 
-req = urllib2.Request("http://noddy.cs.berkeley.edu:5984/run3/_design/pages/_view/%s_length?group=true" % sys.argv[1])
+req = urllib2.Request("http://noddy.cs.berkeley.edu:5984/run%s/_design/pages/_view/%s_length?group=true" % (sys.argv[2], sys.argv[1]))
 base64string = base64.encodestring('%s:%s' % ('measurement', 'g0b3ars'))[:-1]
 req.add_header("Authorization", "Basic %s" % base64string)
 
@@ -36,8 +36,11 @@ for row in d["rows"]:
 for t, n in sorted(buckets.items()):
   print "%s\t%d" % (t, n)
 
-print "mean:   %.2f" % stats.mean(vals)
-print "median: %.2f" % stats.median(vals)
+print "=== STATS ==="
+print "  mean: %.2f" % stats.mean(vals)
+print "median: %d" % vals[len(vals)/2]
+print "   max: %d" % max(vals)
+print " total: %d" % len(vals)
 
 f = open('/home/wli/scratch/%s.json' % sys.argv[1], 'w')
 f.write(json.dumps(buckets))
