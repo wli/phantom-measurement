@@ -217,7 +217,7 @@ def handle_delivery(channel, method_frame, header_frame, body):
 
     # Run JS file
     phantom_start_time = time.time()
-    phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=yes', '--proxy=' + httpd_addr, js.name, request_url, output.name])#, stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
+    phantom = subprocess.Popen([PHANTOMJS_PATH, '--load-plugins=no', '--proxy=' + httpd_addr, js.name, request_url, output.name])#, stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
     now = time.time()
     phantom_timed_out = False
     while True: # If not terminated:
@@ -308,32 +308,32 @@ def handle_delivery(channel, method_frame, header_frame, body):
       data['local_storage'] = {}
 
     # Get Flash LSOs
-    if os.path.exists(FLASH_PLAYER_DIR):
-      flash_cookies = collections.defaultdict(dict)
-      def flash_origins(base):
-        print "flash_origins: %s" % base
-        for path in os.listdir(base):
-          if path[-1] == '#':
-            for dir in os.listdir(os.path.join(base, path)):
-              if not os.path.isdir(dir): continue
-              for result in flash_origins(os.path.join(base, path, dir)): 
-                yield (path[:-1] + result[0], result[1])
-          else: yield (path, os.path.join(base, path))
-      
-      try:
-        random_str = (d for d in os.listdir(FLASH_PLAYER_DIR) if os.path.isdir(os.path.join(FLASH_PLAYER_DIR, d))).next()
-        for origin, path in flash_origins(os.path.join(FLASH_PLAYER_DIR, random_str)):
-          for sol in glob.glob(os.path.join(path, '*.sol')):
-            sol_name = os.path.basename(sol)[:-4]
-            try:
-              flash_cookies[origin][sol_name] = dict(pyamf.sol.load(sol))
-            except:
-              pass
-      except StopIteration:
-        pass
-      data['flash_cookies'] = dict(flash_cookies)
-    else:
-      data['flash_cookies'] = {}
+#    if os.path.exists(FLASH_PLAYER_DIR):
+#      flash_cookies = collections.defaultdict(dict)
+#      def flash_origins(base):
+#        print "flash_origins: %s" % base
+#        for path in os.listdir(base):
+#          if path[-1] == '#':
+#            for dir in os.listdir(os.path.join(base, path)):
+#              if not os.path.isdir(dir): continue
+#              for result in flash_origins(os.path.join(base, path, dir)): 
+#                yield (path[:-1] + result[0], result[1])
+#          else: yield (path, os.path.join(base, path))
+#      
+#      try:
+#        random_str = (d for d in os.listdir(FLASH_PLAYER_DIR) if os.path.isdir(os.path.join(FLASH_PLAYER_DIR, d))).next()
+#        for origin, path in flash_origins(os.path.join(FLASH_PLAYER_DIR, random_str)):
+#          for sol in glob.glob(os.path.join(path, '*.sol')):
+#            sol_name = os.path.basename(sol)[:-4]
+#            try:
+#              flash_cookies[origin][sol_name] = dict(pyamf.sol.load(sol))
+#            except:
+#              pass
+#      except StopIteration:
+#        pass
+#      data['flash_cookies'] = dict(flash_cookies)
+#    else:
+#      data['flash_cookies'] = {}
 
     # Page row
     page = {}
