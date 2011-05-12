@@ -2,20 +2,20 @@ import urllib2
 import json
 import base64
 
-req = urllib2.Request("http://noddy.cs.berkeley.edu:5984/run4/_design/pages/_view/jquery_versions?group=true")
+req = urllib2.Request("http://noddy.cs.berkeley.edu:5984/run3/_design/pages/_view/server_versions?group=true")
 base64string = base64.encodestring('%s:%s' % ('measurement', 'g0b3ars'))[:-1]
 req.add_header("Authorization", "Basic %s" % base64string)
 
 r = urllib2.urlopen(req)
 
 d = json.loads(r.read())
-versions = {}
+servers = {}
 for row in d["rows"]:
-  versions[row['key']] = row['value']
+  servers[row['key']] = row['value']
 
-types = {"1.0": 0, "1.1": 0, "1.2": 0, "1.3": 0, "1.4": 0, "1.5": 0, "1.6": 0, "no_jquery": 0, "other": 0}
+types = {"apache": 0, "nginx": 0, "gws": 0, "microsoft-iis": 0, "gse": 0, "ibm_http_server": 0, "other": 0}
 
-for s, n in versions.items():
+for s, n in servers.items():
   for t in types.keys():
     if s.lower().startswith(t):
       types[t] += n
@@ -24,8 +24,8 @@ for s, n in versions.items():
     types["other"] += n
 
 for t, n in types.items():
-  print "%s.x\t%d" % (t, n)
+  print "%s\t%d" % (t, n)
 
-f = open('/home/wli/scratch/jquery.json', 'w')
-f.write(json.dumps(versions))
+f = open('/home/wli/scratch/servers.json', 'w')
+f.write(json.dumps(servers))
 f.close()

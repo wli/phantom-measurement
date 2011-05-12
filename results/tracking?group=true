@@ -1,0 +1,14 @@
+{"rows":[
+{"key":"adsense-false","value":357612},
+{"key":"adsense-true","value":103811},
+{"key":"analytics-false","value":208328},
+{"key":"analytics-true","value":253095},
+{"key":"doubleclick-false","value":356606},
+{"key":"doubleclick-true","value":104817},
+{"key":"facebook-false","value":382751},
+{"key":"facebook-true","value":78672},
+{"key":"google-false","value":181146},
+{"key":"google-true","value":280277},
+{"key":"twitter-false","value":440907},
+{"key":"twitter-true","value":20516}
+]}
