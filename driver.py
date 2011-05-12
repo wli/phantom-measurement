@@ -131,7 +131,7 @@ js.write(open('base.js', 'r').read())
 js.flush()
 
 # Find WebKit profile directory
-WEBKIT_PROFILE_DIR_LOCS = [os.path.expanduser('~/.local/share/data/Ofi Labs/PhantomJS/'),
+WEBKIT_PROFILE_DIR_LOCS = ['/.local/share/data/Ofi Labs/PhantomJS/'),
                            os.path.expanduser('~/Library/Application Support/Ofi Labs/PhantomJS/')]
 WEBKIT_PROFILE_DIR = WEBKIT_PROFILE_DIR_LOCS[0]
 for d in WEBKIT_PROFILE_DIR_LOCS[1:]:
@@ -304,6 +304,8 @@ def handle_delivery(channel, method_frame, header_frame, body):
         for key, value in sqlite3.connect(db_path).execute('select * from ItemTable'):
           local_storage[origin][key] = value
       data['local_storage'] = dict(local_storage)
+    else:
+      data['local_storage'] = {}
 
     # Get Flash LSOs
     if os.path.exists(FLASH_PLAYER_DIR):
@@ -330,6 +332,8 @@ def handle_delivery(channel, method_frame, header_frame, body):
       except StopIteration:
         pass
       data['flash_cookies'] = dict(flash_cookies)
+    else:
+      data['flash_cookies'] = {}
 
     # Page row
     page = {}
